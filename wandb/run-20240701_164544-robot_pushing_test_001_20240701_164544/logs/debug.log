@@ -1,0 +1,35 @@
+2024-07-01 16:45:44,586 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Current SDK version is 0.16.6
+2024-07-01 16:45:44,586 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Configure stats pid to 56022
+2024-07-01 16:45:44,587 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Loading settings from /home/wmandil/.config/wandb/settings
+2024-07-01 16:45:44,587 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Loading settings from /home/wmandil/robotics/SPOTS/wandb/settings
+2024-07-01 16:45:44,587 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Loading settings from environment variables: {}
+2024-07-01 16:45:44,587 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'train.py', 'program_abspath': '/home/wmandil/robotics/SPOTS/train.py', 'program': '/home/wmandil/robotics/SPOTS/train.py'}
+2024-07-01 16:45:44,587 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Applying login settings: {}
+2024-07-01 16:45:44,588 INFO    MainThread:56022 [wandb_setup.py:_flush():76] Applying login settings: {}
+2024-07-01 16:45:44,588 INFO    MainThread:56022 [wandb_init.py:_log_setup():521] Logging user logs to /home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/logs/debug.log
+2024-07-01 16:45:44,588 INFO    MainThread:56022 [wandb_init.py:_log_setup():522] Logging internal logs to /home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/logs/debug-internal.log
+2024-07-01 16:45:44,588 INFO    MainThread:56022 [wandb_init.py:init():561] calling init triggers
+2024-07-01 16:45:44,588 INFO    MainThread:56022 [wandb_init.py:init():568] wandb.init called with sweep_config: {}
+config: {'BeIT': False, 'action': True, 'action_dim': 6, 'batch_size': 256, 'beta1': 0.9, 'beta2': 0.99, 'bias': True, 'blind_image_data': False, 'block_size': 181, 'context_length': 10, 'criterion': 'MAE', 'dataset_name': 'robot_grasping_dataset', 'dataset_train_dir': '/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/', 'dataset_val_dir': '/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/', 'date_and_time': '0701_164543', 'device': 'cuda', 'dropout': 0.2, 'dtype': 'float16', 'enc_dim': 768, 'eval_interval': 10, 'experiment_name': 'robot_pushing_test_001', 'image': True, 'image_height': 64, 'image_width': 64, 'infill_patches': True, 'input_dim': 3, 'learning_rate': 0.001, 'load_full_dataset_to_gpu': True, 'log_interval': 100, 'mask': True, 'model_config': {'BeIT': False, 'H': 64, 'W': 64, 'action': True, 'action_dim': 6, 'bias': True, 'block_size': 181, 'context_length': 10, 'device': 'cuda', 'dropout': 0.2, 'fh': 16, 'fw': 16, 'image': True, 'input_dim': 3, 'mask': True, 'n_embd': 768, 'n_head': 12, 'n_layer': 2, 'num_frames': 11, 'patches_per_frame': 16, 'prediction_length': 1, 'pretrained_acvp_model_path': '', 'tactile': True, 'tactile_conditioned': False, 'tactile_dim': 48}, 'model_name': 'ACVTPGPT', 'num_encoder_layers': 2, 'num_frames': 11, 'num_heads': 12, 'num_steps': 1000000, 'num_workers': 4, 'padding': False, 'patch_size': 16, 'pre_load_data': True, 'prediction_horizon': 20, 'pretrained_acvp_model_path': '', 'replace_with': '/home/wmandil/robotics/datasets/robot_pushing/', 'sample_rate': 10, 'save_dir': '/home/wmandil/robotics/saved_models/', 'save_interval': 20000, 'scale_tactile_tactile': True, 'seed': 42, 'shuffle_buffer_size': 1000, 'tactile': True, 'tactile_conditioned': False, 'tactile_dim': 48, 'to_replace': '/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/', 'transformer_input_height': 16, 'transformer_input_width': 16, 'val_shuffle_buffer_size': 1000, 'viz_steps': [1, 200, 800, 1050, 1350], 'wandb': {'entity': None, 'group': None, 'project': 'SPOTS_pushing_test'}, 'wandb_resume': False, 'wandb_resume_id': '', 'weight_decay': 0.0001}
+2024-07-01 16:45:44,588 INFO    MainThread:56022 [wandb_init.py:init():611] starting backend
+2024-07-01 16:45:44,588 INFO    MainThread:56022 [wandb_init.py:init():615] setting up manager
+2024-07-01 16:45:44,590 INFO    MainThread:56022 [backend.py:_multiprocessing_setup():105] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2024-07-01 16:45:44,592 INFO    MainThread:56022 [wandb_init.py:init():623] backend started and connected
+2024-07-01 16:45:44,596 INFO    MainThread:56022 [wandb_init.py:init():715] updated telemetry
+2024-07-01 16:45:44,596 INFO    MainThread:56022 [wandb_init.py:init():748] communicating run to backend with 90.0 second timeout
+2024-07-01 16:45:45,049 INFO    MainThread:56022 [wandb_run.py:_on_init():2357] communicating current version
+2024-07-01 16:45:45,166 INFO    MainThread:56022 [wandb_run.py:_on_init():2366] got version response upgrade_message: "wandb version 0.17.3 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+
+2024-07-01 16:45:45,167 INFO    MainThread:56022 [wandb_init.py:init():799] starting run threads in backend
+2024-07-01 16:46:02,927 WARNING MsgRouterThr:56022 [router.py:message_loop():77] message_loop has been closed
+2024-07-01 16:46:10,337 ERROR   MainThread:56022 [wandb_init.py:init():1199] transport failed
+Traceback (most recent call last):
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/wandb_init.py", line 1181, in init
+    run = wi.init()
+          ^^^^^^^^^
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/wandb_init.py", line 812, in init
+    run_start_result = run_start_handle.wait(timeout=30)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/lib/mailbox.py", line 281, in wait
+    raise MailboxError("transport failed")
+wandb.sdk.lib.mailbox.MailboxError: transport failed

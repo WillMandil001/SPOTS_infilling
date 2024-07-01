@@ -1,0 +1,52 @@
+I0701 16:42:01.876901 140597701596992 train.py:50] Wandb logs saved to /home/wmandil/robotics/SPOTS/wandb/run-20240701_164146-robot_pushing_test_001_20240701_164146/files
+I0701 16:42:01.878042 140597701596992 train.py:51] Wandb url: https://wandb.ai/will-mandil/SPOTS_pushing_test/runs/robot_pushing_test_001_20240701_164146
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Loading data: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 326/326 [00:49<00:00,  6.63it/s]
+Loading data: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 14/14 [00:01<00:00,  9.65it/s]
+
+Loading data: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 14/14 [00:01<00:00, 11.43it/s]
+num decayed parameter tensors: 14, with 15,552,768 parameters
+num non-decayed parameter tensors: 23, with 23,859 parameters
+using fused AdamW: False
+I0701 16:42:58.190398 140597701596992 train.py:83] Saving to /home/wmandil/robotics/saved_models/SPOTS_pushing_test/robot_pushing_test_001_20240701_164146
+I0701 16:42:59.435835 140597701596992 train.py:103]  --- starting training loop
+
+
+  0%|                                                                                                                                                                                                                 | 9/1000000 [00:12<384:17:17,  1.38s/it]
+Traceback (most recent call last):
+  File "/home/wmandil/robotics/SPOTS/train.py", line 140, in <module>
+    app.run(main)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/absl/app.py", line 308, in run
+    _run_main(main, args)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/absl/app.py", line 254, in _run_main
+    sys.exit(main(argv))
+             ^^^^^^^^^^
+  File "/home/wmandil/robotics/SPOTS/train.py", line 125, in main
+    viz_update_info = viz_step(step, FLAGS, model, criterion, viz_dataloader, timer)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/wmandil/robotics/SPOTS/train_utils.py", line 290, in viz_step
+    viz_image_figure(image_groundtruth, rollout_image_prediction, flags.config)
+TypeError: viz_image_figure() missing 1 required positional argument: 'step'

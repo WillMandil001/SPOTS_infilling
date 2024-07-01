@@ -1,0 +1,62 @@
+{
+    "os": "Linux-5.15.0-113-generic-x86_64-with-glibc2.31",
+    "python": "3.11.9",
+    "heartbeatAt": "2024-07-01T15:41:46.706040",
+    "startedAt": "2024-07-01T15:41:46.126151",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/wmandil/robotics/SPOTS/train.py",
+    "codePathLocal": "train.py",
+    "codePath": "train.py",
+    "host": "inb0104-l-pc",
+    "username": "wmandil",
+    "executable": "/home/wmandil/miniforge3/envs/ros_env/bin/python",
+    "cpu_count": 4,
+    "cpu_count_logical": 4,
+    "cpu_freq": {
+        "current": 3537.82125,
+        "min": 800.0,
+        "max": 3800.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3400.0,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 3663.361,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 3687.924,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 3400.0,
+            "min": 800.0,
+            "max": 3800.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 191.15748596191406,
+            "used": 151.14456939697266
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 4090",
+            "memory_total": 25757220864
+        }
+    ],
+    "memory": {
+        "total": 15.575420379638672
+    }
+}

@@ -1,0 +1,289 @@
+wandb_version: 1
+
+BeIT:
+  desc: null
+  value: false
+action:
+  desc: null
+  value: true
+action_dim:
+  desc: null
+  value: 6
+batch_size:
+  desc: null
+  value: 256
+beta1:
+  desc: null
+  value: 0.9
+beta2:
+  desc: null
+  value: 0.99
+bias:
+  desc: null
+  value: true
+blind_image_data:
+  desc: null
+  value: false
+block_size:
+  desc: null
+  value: 181
+context_length:
+  desc: null
+  value: 10
+criterion:
+  desc: null
+  value: MAE
+dataset_name:
+  desc: null
+  value: robot_grasping_dataset
+dataset_train_dir:
+  desc: null
+  value: /home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/
+dataset_val_dir:
+  desc: null
+  value: /home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/
+date_and_time:
+  desc: null
+  value: '0701_164144'
+device:
+  desc: null
+  value: cuda
+dropout:
+  desc: null
+  value: 0.2
+dtype:
+  desc: null
+  value: float16
+enc_dim:
+  desc: null
+  value: 768
+eval_interval:
+  desc: null
+  value: 10
+experiment_name:
+  desc: null
+  value: robot_pushing_test_001
+image:
+  desc: null
+  value: true
+image_height:
+  desc: null
+  value: 64
+image_width:
+  desc: null
+  value: 64
+infill_patches:
+  desc: null
+  value: true
+input_dim:
+  desc: null
+  value: 3
+learning_rate:
+  desc: null
+  value: 0.001
+load_full_dataset_to_gpu:
+  desc: null
+  value: true
+log_interval:
+  desc: null
+  value: 100
+mask:
+  desc: null
+  value: true
+model_config:
+  desc: null
+  value:
+    BeIT: false
+    H: 64
+    W: 64
+    action: true
+    action_dim: 6
+    bias: true
+    block_size: 181
+    context_length: 10
+    device: cuda
+    dropout: 0.2
+    fh: 16
+    fw: 16
+    image: true
+    input_dim: 3
+    mask: true
+    n_embd: 768
+    n_head: 12
+    n_layer: 2
+    num_frames: 11
+    patches_per_frame: 16
+    prediction_length: 1
+    pretrained_acvp_model_path: ''
+    tactile: true
+    tactile_conditioned: false
+    tactile_dim: 48
+model_name:
+  desc: null
+  value: ACVTPGPT
+num_encoder_layers:
+  desc: null
+  value: 2
+num_frames:
+  desc: null
+  value: 11
+num_heads:
+  desc: null
+  value: 12
+num_steps:
+  desc: null
+  value: 1000000
+num_workers:
+  desc: null
+  value: 4
+padding:
+  desc: null
+  value: false
+patch_size:
+  desc: null
+  value: 16
+pre_load_data:
+  desc: null
+  value: true
+prediction_horizon:
+  desc: null
+  value: 20
+pretrained_acvp_model_path:
+  desc: null
+  value: ''
+replace_with:
+  desc: null
+  value: /home/wmandil/robotics/datasets/robot_pushing/
+sample_rate:
+  desc: null
+  value: 10
+save_dir:
+  desc: null
+  value: /home/wmandil/robotics/saved_models/SPOTS_pushing_test/robot_pushing_test_001_20240701_164146
+save_interval:
+  desc: null
+  value: 20000
+scale_tactile_tactile:
+  desc: null
+  value: true
+seed:
+  desc: null
+  value: 42
+shuffle_buffer_size:
+  desc: null
+  value: 1000
+tactile:
+  desc: null
+  value: true
+tactile_conditioned:
+  desc: null
+  value: false
+tactile_dim:
+  desc: null
+  value: 48
+to_replace:
+  desc: null
+  value: /media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/
+transformer_input_height:
+  desc: null
+  value: 16
+transformer_input_width:
+  desc: null
+  value: 16
+val_shuffle_buffer_size:
+  desc: null
+  value: 1000
+viz_steps:
+  desc: null
+  value:
+  - 1
+  - 200
+  - 800
+  - 1050
+  - 1350
+wandb:
+  desc: null
+  value:
+    entity: null
+    group: null
+    project: SPOTS_pushing_test
+wandb_resume:
+  desc: null
+  value: false
+wandb_resume_id:
+  desc: null
+  value: ''
+weight_decay:
+  desc: null
+  value: 0.0001
+_wandb:
+  desc: null
+  value:
+    python_version: 3.11.9
+    cli_version: 0.16.6
+    framework: huggingface
+    huggingface_version: 4.40.1
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1719848506.0
+    t:
+      1:
+      - 1
+      - 2
+      - 3
+      - 5
+      - 11
+      - 12
+      - 45
+      - 49
+      - 53
+      - 55
+      2:
+      - 1
+      - 2
+      - 3
+      - 5
+      - 11
+      - 12
+      - 45
+      - 49
+      - 53
+      - 55
+      3:
+      - 13
+      - 14
+      - 16
+      - 23
+      - 61
+      4: 3.11.9
+      5: 0.16.6
+      6: 4.40.1
+      8:
+      - 5
+      13: linux-x86_64
+example_batch_spec:
+  desc: null
+  value:
+    robot:
+    - 256
+    - 11
+    - 6
+    image:
+    - 256
+    - 11
+    - 3
+    - 64
+    - 64
+    tactile:
+    - 256
+    - 11
+    - 48
+train_dataset_size:
+  desc: null
+  value: 144495
+val_dataset_size:
+  desc: null
+  value: 6341
+viz_dataset_size:
+  desc: null
+  value: 3681

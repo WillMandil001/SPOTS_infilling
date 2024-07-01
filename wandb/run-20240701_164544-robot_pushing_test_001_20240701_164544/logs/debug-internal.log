@@ -1,0 +1,70 @@
+2024-07-01 16:45:44,591 INFO    StreamThr :56105 [internal.py:wandb_internal():86] W&B internal server running at pid: 56105, started at: 2024-07-01 16:45:44.591084
+2024-07-01 16:45:44,595 DEBUG   HandlerThread:56105 [handler.py:handle_request():146] handle_request: status
+2024-07-01 16:45:44,597 INFO    WriterThread:56105 [datastore.py:open_for_write():87] open: /home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/run-robot_pushing_test_001_20240701_164544.wandb
+2024-07-01 16:45:44,598 DEBUG   SenderThread:56105 [sender.py:send():379] send: header
+2024-07-01 16:45:44,599 DEBUG   SenderThread:56105 [sender.py:send():379] send: run
+2024-07-01 16:45:45,028 INFO    SenderThread:56105 [dir_watcher.py:__init__():211] watching files in: /home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/files
+2024-07-01 16:45:45,028 INFO    SenderThread:56105 [sender.py:_start_run_threads():1124] run started: robot_pushing_test_001_20240701_164544 with start time 1719848744.59295
+2024-07-01 16:45:45,049 DEBUG   HandlerThread:56105 [handler.py:handle_request():146] handle_request: check_version
+2024-07-01 16:45:45,050 DEBUG   SenderThread:56105 [sender.py:send_request():406] send_request: check_version
+2024-07-01 16:45:45,179 DEBUG   HandlerThread:56105 [handler.py:handle_request():146] handle_request: run_start
+2024-07-01 16:45:45,223 DEBUG   HandlerThread:56105 [system_info.py:__init__():26] System info init
+2024-07-01 16:45:45,223 DEBUG   HandlerThread:56105 [system_info.py:__init__():41] System info init done
+2024-07-01 16:45:45,223 INFO    HandlerThread:56105 [system_monitor.py:start():194] Starting system monitor
+2024-07-01 16:45:45,224 INFO    SystemMonitor:56105 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2024-07-01 16:45:45,224 INFO    HandlerThread:56105 [system_monitor.py:probe():214] Collecting system info
+2024-07-01 16:45:45,230 INFO    SystemMonitor:56105 [interfaces.py:start():190] Started cpu monitoring
+2024-07-01 16:45:45,232 INFO    SystemMonitor:56105 [interfaces.py:start():190] Started disk monitoring
+2024-07-01 16:45:45,236 INFO    SystemMonitor:56105 [interfaces.py:start():190] Started gpu monitoring
+2024-07-01 16:45:45,239 DEBUG   HandlerThread:56105 [system_info.py:probe():150] Probing system
+2024-07-01 16:45:45,239 INFO    SystemMonitor:56105 [interfaces.py:start():190] Started memory monitoring
+2024-07-01 16:45:45,241 INFO    SystemMonitor:56105 [interfaces.py:start():190] Started network monitoring
+2024-07-01 16:45:45,241 DEBUG   HandlerThread:56105 [gitlib.py:_init_repo():56] git repository is invalid
+2024-07-01 16:45:45,241 DEBUG   HandlerThread:56105 [system_info.py:probe():198] Probing system done
+2024-07-01 16:45:45,241 DEBUG   HandlerThread:56105 [system_monitor.py:probe():223] {'os': 'Linux-5.15.0-113-generic-x86_64-with-glibc2.31', 'python': '3.11.9', 'heartbeatAt': '2024-07-01T15:45:45.239128', 'startedAt': '2024-07-01T15:45:44.579744', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': '/home/wmandil/robotics/SPOTS/train.py', 'codePathLocal': 'train.py', 'codePath': 'train.py', 'host': 'inb0104-l-pc', 'username': 'wmandil', 'executable': '/home/wmandil/miniforge3/envs/ros_env/bin/python', 'cpu_count': 4, 'cpu_count_logical': 4, 'cpu_freq': {'current': 1865.29675, 'min': 800.0, 'max': 3800.0}, 'cpu_freq_per_core': [{'current': 1826.511, 'min': 800.0, 'max': 3800.0}, {'current': 2035.853, 'min': 800.0, 'max': 3800.0}, {'current': 1769.003, 'min': 800.0, 'max': 3800.0}, {'current': 1829.82, 'min': 800.0, 'max': 3800.0}], 'disk': {'/': {'total': 191.15748596191406, 'used': 151.1345443725586}}, 'gpu': 'NVIDIA GeForce RTX 4090', 'gpu_count': 1, 'gpu_devices': [{'name': 'NVIDIA GeForce RTX 4090', 'memory_total': 25757220864}], 'memory': {'total': 15.575420379638672}}
+2024-07-01 16:45:45,241 INFO    HandlerThread:56105 [system_monitor.py:probe():224] Finished collecting system info
+2024-07-01 16:45:45,241 INFO    HandlerThread:56105 [system_monitor.py:probe():227] Publishing system info
+2024-07-01 16:45:45,241 DEBUG   HandlerThread:56105 [system_info.py:_save_conda():207] Saving list of conda packages installed into the current environment
+2024-07-01 16:45:46,029 INFO    Thread-12 :56105 [dir_watcher.py:_on_file_created():271] file/dir created: /home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/files/conda-environment.yaml
+2024-07-01 16:46:00,251 ERROR   HandlerThread:56105 [system_info.py:_save_conda():221] Error saving conda packages: Command '['conda', 'env', 'export']' timed out after 15 seconds
+Traceback (most recent call last):
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/system/system_info.py", line 214, in _save_conda
+    subprocess.call(
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/subprocess.py", line 391, in call
+    return p.wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/subprocess.py", line 1264, in wait
+    return self._wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/subprocess.py", line 2045, in _wait
+    raise TimeoutExpired(self.args, timeout)
+subprocess.TimeoutExpired: Command '['conda', 'env', 'export']' timed out after 15 seconds
+2024-07-01 16:46:00,253 DEBUG   HandlerThread:56105 [system_info.py:_save_conda():222] Saving conda packages done
+2024-07-01 16:46:01,052 INFO    WriterThread:56105 [datastore.py:close():296] close: /home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/run-robot_pushing_test_001_20240701_164544.wandb
+2024-07-01 16:46:01,168 INFO    SenderThread:56105 [sender.py:finish():1546] shutting down sender
+2024-07-01 16:46:01,168 INFO    SenderThread:56105 [dir_watcher.py:finish():358] shutting down directory watcher
+2024-07-01 16:46:02,030 INFO    SenderThread:56105 [dir_watcher.py:finish():388] scan: /home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/files
+2024-07-01 16:46:02,031 INFO    SenderThread:56105 [file_pusher.py:finish():172] shutting down file pusher
+2024-07-01 16:46:02,031 INFO    SenderThread:56105 [file_pusher.py:join():178] waiting for file pusher
+2024-07-01 16:46:02,531 INFO    SenderThread:56105 [file_stream.py:finish():614] file stream finish called
+2024-07-01 16:46:02,804 INFO    SenderThread:56105 [file_stream.py:finish():618] file stream finish is done
+2024-07-01 16:46:02,804 ERROR   StreamThr :56105 [internal.py:wandb_internal():174] Thread HandlerThread:
+Traceback (most recent call last):
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/internal_util.py", line 49, in run
+    self._run()
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/internal_util.py", line 100, in _run
+    self._process(record)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/internal.py", line 279, in _process
+    self._hm.handle(record)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/handler.py", line 138, in handle
+    handler(record)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/handler.py", line 148, in handle_request
+    handler(record)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/handler.py", line 686, in handle_request_run_start
+    self._system_monitor.probe(publish=True)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/system/system_monitor.py", line 228, in probe
+    self.system_info.publish(system_info)
+  File "/home/wmandil/miniforge3/envs/ros_env/lib/python3.11/site-packages/wandb/sdk/internal/system/system_info.py", line 233, in publish
+    with open(self.metadata_file_name, "w") as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/wmandil/robotics/SPOTS/wandb/run-20240701_164544-robot_pushing_test_001_20240701_164544/files/wandb-metadata.json'

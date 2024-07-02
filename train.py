@@ -9,7 +9,7 @@ import torch.nn as nn
 # training utilities
 import train_utils
 
-# models 
+# models
 from model import VPGPT
 
 # data loading and processing
@@ -58,7 +58,7 @@ class VisionTactileDataset(Dataset):
             for i in range(0, (self.context_len + self.prediction_horizon)*self.config.sample_rate, self.config.sample_rate):
                 step_data = self.data[start_index + i]
                 if self.config.action:      robot_state.append(step_data[0])
-                if self.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
+                if self.config.image:       image_data.append(step_data[1])
                 if self.config.tactile:     tactile_data.append(step_data[2].flatten())
         else:
             steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
@@ -69,11 +69,11 @@ class VisionTactileDataset(Dataset):
                 if self.config.image:       image_data.append(step_data[()]['image'].astype(np.float32) / 255)
                 if self.config.tactile:     tactile_data.append(step_data[()]['tactile'].astype(np.float32))
 
-        if self.config.action:   robot_state = np.stack(robot_state, axis=0)         # shape is robot=[c+p, bs, 6]
-        if self.config.image:    image_data  = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
-        if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)  # shape is tactile=[c+p, bs, 48]
+        if self.config.action:   robot_state  = torch.tensor(np.stack(robot_state, axis=0))    # shape is robot=[c+p, bs, 6]
+        if self.config.image:    image_data   = torch.tensor(np.stack(image_data, axis=0))     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
+        if self.config.tactile:  tactile_data = torch.tensor(np.stack(tactile_data, axis=0))   # shape is tactile=[c+p, bs, 48]
 
-        return torch.tensor(robot_state), torch.tensor(image_data).permute(0, 3, 1, 2) ,torch.tensor(tactile_data)
+        return robot_state, image_data ,tactile_data
 
     def build_dataset(self):
         self.total_sequences = 0
@@ -95,15 +95,15 @@ class VisionTactileDataset(Dataset):
                     save_name = save_name.replace(self.config.to_replace, self.config.replace_with)            # overwrite location if it has changed:
                     step_data = np.load(save_name, allow_pickle=True)
                     robot_state  = step_data[()]["state"]
-                    image_data   = step_data[()]['image']
+                    image_data   = np.array(step_data[()]['image'].astype(np.float32) / 255).transpose(2, 0, 1)
                     tactile_data = step_data[()]['tactile']
                     if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
                         self.sample_index_list += [current_index]
                     current_index += 1
                     self.data.append([robot_state, image_data, tactile_data])
 
-        if self.config.scale_tactile_tactile:
-            tactile_data = np.array([i[2] for i in self.data])
+        if self.config.scale_data:
+            tactile_data      = np.array([i[2] for i in self.data])
             robot_state_data  = np.array([i[0] for i in self.data])
 
             # Create MinMaxScaler instances for each axis

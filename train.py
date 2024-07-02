@@ -3,13 +3,10 @@ import wandb
 import torch
 import joblib
 import datetime
-import itertools
 import numpy as np
 import torch.nn as nn
-import matplotlib.pyplot as plt
 
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-
+# training utilities
 import train_utils
 
 # models 
@@ -18,6 +15,7 @@ from model import VPGPT
 # data loading and processing
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 # data logging and visualization
 from absl import app, logging
@@ -189,7 +187,7 @@ def main(_):
     scaler = torch.cuda.amp.GradScaler(enabled=(config.dtype == 'float16'))
     optimizer = model.configure_optimizers(config.weight_decay, config.learning_rate, (config.beta1, config.beta2), config.device)
 
-    if config.criterion == "MAE":    criterion = nn.L1Loss()
+    if   config.criterion == "MAE":  criterion = nn.L1Loss()
     elif config.criterion == "MSE":  criterion = nn.MSELoss()
 
     ###########################
@@ -220,8 +218,8 @@ def main(_):
         scaler.update()
         optimizer.zero_grad(set_to_none=True)
         update_info = {"grad_norm": torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0),
-                        "lr": optimizer.param_groups[0]["lr"],
-                        "loss": total_loss.item()}
+                       "lr": optimizer.param_groups[0]["lr"],
+                       "loss": total_loss.item()}
         if config.image:    update_info["image_loss"] = loss.item()
         if config.tactile:  update_info["tactile_loss"] = tactile_loss.item()    
 

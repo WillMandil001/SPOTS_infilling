@@ -46,13 +46,13 @@ class Config:
 
         self.pre_load_data     = True
         self.dataset_name      = "robot_grasping_dataset"
-        self.dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/"
-        self.dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/"
-        self.save_dir          = "/home/wmandil/robotics/saved_models/"
+        self.dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/"  # for the cluster machine: /shared/home/wmandil/datasets/robot_pushing/train/formatted_dataset/
+        self.dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/"    # for the cluster machine: /shared/home/wmandil/datasets/robot_pushing/val/formatted_dataset/
+        self.save_dir          = "/home/wmandil/robotics/saved_models/"                                    # for the cluster machine: /shared/home/wmandil/saved_models/
 
         # if you moved the dataset post formatting, you can use the following to replace the old path with the new one
         self.to_replace   = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
-        self.replace_with = "/home/wmandil/robotics/datasets/robot_pushing/"
+        self.replace_with = "/home/wmandil/robotics/datasets/robot_pushing/"  # for the cluster machine: /shared/home/wmandil/datasets/robot_pushing/
 
         self.model_name      = "ACVTPGPT"
         self.experiment_name = "robot_pushing_test_001"
@@ -70,7 +70,7 @@ class Config:
         self.seed       = 42
         self.batch_size = 256
 
-        self.num_steps       = 1_000_000             # dataset is currently 144,495 steps long (with batch size of 128 = 1200 batchs (num_steps) per epoch. and this would be 8000 epochs)
+        self.num_steps       = 1_000_000       # dataset is currently 144,495 steps long (with batch size of 128 = 1200 batchs (num_steps) per epoch. and this would be 8000 epochs)
         self.eval_interval   = 2_000
         self.save_interval   = 20_000
         self.log_interval    = 100

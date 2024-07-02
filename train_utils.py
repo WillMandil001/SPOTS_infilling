@@ -92,9 +92,9 @@ def viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_seque
         ax.plot(mean_loss, label="tactile loss", color="blue")        
 
     ax.fill_between(range(config.prediction_horizon), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2)
-    ax.set_title("Combined loss over time")
+    ax.set_title("Rollout Loss")
     ax.set_xlabel("Time step")
-    ax.set_ylabel("Loss")
+    ax.set_ylabel("Loss MAE")
     ax.legend()
     wandb.log({"combined_loss_over_time": wandb.Image(fig)}, step=step)
     plt.close(fig)

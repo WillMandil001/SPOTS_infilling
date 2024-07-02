@@ -42,7 +42,7 @@ class Config:
         # General parameters
         #
         ###########################
-        self.debug             = True
+        self.debug             = False
 
         self.pre_load_data     = True
         self.dataset_name      = "robot_grasping_dataset"
@@ -55,10 +55,10 @@ class Config:
         self.replace_with = "/home/wmandil/robotics/datasets/robot_pushing/"  # for the cluster machine: /shared/home/wmandil/datasets/robot_pushing/
 
         self.model_name      = "ACVTPGPT"
-        self.experiment_name = "robot_pushing_test_001"
+        self.experiment_name = self.model_name
         self.date_and_time   = datetime.datetime.now().strftime("%m%d_%H%M%S")
 
-        self.wandb             = dict(project="SPOTS_pushing_test")
+        self.wandb             = dict(project="SPOTS_pushing_debug")
         self.wandb_resume      = False
         self.wandb_resume_id   = ""
 
@@ -70,9 +70,9 @@ class Config:
         self.seed       = 42
         self.batch_size = 256
 
-        self.num_steps       = 1_000_000       # dataset is currently 144,495 steps long (with batch size of 128 = 1200 batchs (num_steps) per epoch. and this would be 8000 epochs)
-        self.eval_interval   = 2_000
-        self.save_interval   = 20_000
+        self.num_steps       = 25_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
+        self.eval_interval   = 10 # 500
+        self.save_interval   = 1_000
         self.log_interval    = 100
 
         self.sample_rate = 10                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
@@ -86,8 +86,9 @@ class Config:
 
         self.load_full_dataset_to_gpu = True
 
+        self.scale_data            = True
+
         self.infill_patches        = True
-        self.scale_tactile_tactile = True
         self.blind_image_data      = False
         self.BeIT                  = False
 

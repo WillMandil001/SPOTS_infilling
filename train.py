@@ -58,7 +58,7 @@ class VisionTactileDataset(Dataset):
             for i in range(0, (self.context_len + self.prediction_horizon)*self.config.sample_rate, self.config.sample_rate):
                 step_data = self.data[start_index + i]
                 if self.config.action:      robot_state.append(step_data[0])
-                if self.config.image:       image_data.append(step_data[1])
+                if self.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
                 if self.config.tactile:     tactile_data.append(step_data[2].flatten())
         else:
             steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
@@ -95,7 +95,7 @@ class VisionTactileDataset(Dataset):
                     save_name = save_name.replace(self.config.to_replace, self.config.replace_with)            # overwrite location if it has changed:
                     step_data = np.load(save_name, allow_pickle=True)
                     robot_state  = step_data[()]["state"]
-                    image_data   = np.array(step_data[()]['image'].astype(np.float32) / 255).transpose(2, 0, 1)
+                    image_data   = step_data[()]['image'].transpose(2, 0, 1)
                     tactile_data = step_data[()]['tactile']
                     if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
                         self.sample_index_list += [current_index]
@@ -220,8 +220,8 @@ def main(_):
         update_info = {"grad_norm": torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0),
                        "lr": optimizer.param_groups[0]["lr"],
                        "loss": total_loss.item()}
-        if config.image:    update_info["image_loss"] = loss.item()
-        if config.tactile:  update_info["tactile_loss"] = tactile_loss.item()    
+        if config.image:    update_info["Training: image loss"] = loss.item()
+        if config.tactile:  update_info["Training: tactile loss"] = tactile_loss.item()    
 
         return update_info
 
@@ -232,8 +232,8 @@ def main(_):
             for i, batch in enumerate(val_dataloader):
                 pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
                 val_metrics["validation_loss"] = val_metrics.get("loss", 0) + total_loss.item()
-                if config.tactile:  val_metrics["tactile_loss"] = val_metrics.get("tactile_loss", 0) + tactile_loss.item()
-                if config.image:    val_metrics["image_loss"] = val_metrics.get("image_loss", 0) + loss.item()
+                if config.tactile:  val_metrics["Validation: tactile loss"] = val_metrics.get("tactile_loss", 0) + tactile_loss.item()
+                if config.image:    val_metrics["Validation: image loss"] = val_metrics.get("image_loss", 0) + loss.item()
         val_metrics = train_utils.tree_map(lambda x: x / (step + 1), val_metrics)
         return val_metrics
 
@@ -259,9 +259,9 @@ def main(_):
                     loss_sequences_combined.append(loss_sequence_combined)
 
         viz_metrics = {}
-        if config.image and config.tactile:  viz_metrics["rollout combined loss {}".format(config.prediction_horizon)] = np.mean(combined_losses)
-        if config.image:                     viz_metrics["rollout image loss {}".format(config.prediction_horizon)]    = np.mean(image_loss_list)
-        if config.tactile:                   viz_metrics["rollout tactile loss {}".format(config.prediction_horizon)]  = np.mean(tactile_loss_list)
+        if config.image and config.tactile:  viz_metrics["Test: Rollout combined loss {}".format(config.prediction_horizon)] = np.mean(combined_losses)
+        if config.image:                     viz_metrics["Test: Rollout image loss {}".format(config.prediction_horizon)]    = np.mean(image_loss_list)
+        if config.tactile:                   viz_metrics["Test: Rollout tactile loss {}".format(config.prediction_horizon)]  = np.mean(tactile_loss_list)
 
         train_utils.viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, config, step)
         return viz_metrics

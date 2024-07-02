@@ -1,145 +1,157 @@
-import torch.nn as nn
 import datetime
 
-from ml_collections import ConfigDict
-from ml_collections.config_dict import placeholder
+class model_config_builder():
+    def __init__(self, config):
+        if config.image == True and config.tactile == False and config.action == False:
+            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length)
+        if config.image == True and config.action == True and config.tactile == False:
+            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + (config.context_length + 1)
+        if config.image == True and config.action == True and config.tactile == True:
+            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + (config.context_length + 1) + config.context_length
 
-def get_config():
-    config = dict(
-        pre_load_data     = True,
-        dataset_name      = "robot_grasping_dataset",
-        dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/",
-        dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/",
-        save_dir          = "/home/wmandil/robotics/saved_models/",
+        self.n_layer = config.num_encoder_layers
+        self.n_head = config.num_heads
+        self.n_embd = config.enc_dim
+        self.dropout = config.dropout
+        self.input_dim = config.input_dim
+        self.H = config.image_height
+        self.bias = config.bias
+        self.W = config.image_width
+        self.fh = config.transformer_input_height
+        self.fw = config.transformer_input_width
+        self.mask = config.mask
+        self.num_frames = config.num_frames
+        self.context_length = config.context_length
+        self.prediction_length = config.num_frames - config.context_length
+        self.patches_per_frame =  int((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width))
+        self.device = config.device
+        self.BeIT = config.BeIT
+        self.tactile_dim = config.tactile_dim
+        self.action = config.action
+        self.action_dim = config.action_dim
+        self.tactile = config.tactile
+        self.image = config.image
+        self.tactile_conditioned = config.tactile_conditioned
+        self.pretrained_acvp_model_path = config.pretrained_acvp_model_path
+
+class Config:
+    # add model config
+    def __init__(self):
+        ###########################
+        #
+        # General parameters
+        #
+        ###########################
+        self.debug             = True
+
+        self.pre_load_data     = True
+        self.dataset_name      = "robot_grasping_dataset"
+        self.dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/"
+        self.dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/"
+        self.save_dir          = "/home/wmandil/robotics/saved_models/"
 
         # if you moved the dataset post formatting, you can use the following to replace the old path with the new one
-        to_replace = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/",
-        replace_with = "/home/wmandil/robotics/datasets/robot_pushing/",
+        self.to_replace   = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
+        self.replace_with = "/home/wmandil/robotics/datasets/robot_pushing/"
 
-        model_name      = "ACVTPGPT" ,
-        experiment_name = "robot_pushing_test_001",
-        date_and_time   = datetime.datetime.now().strftime("%m%d_%H%M%S"),
+        self.model_name      = "ACVTPGPT"
+        self.experiment_name = "robot_pushing_test_001"
+        self.date_and_time   = datetime.datetime.now().strftime("%m%d_%H%M%S")
 
-        wandb             = dict(project="SPOTS_pushing_test", group=placeholder(str), entity=placeholder(str)),
-        wandb_resume      = False,
-        wandb_resume_id   = "",
+        self.wandb             = dict(project="SPOTS_pushing_test")
+        self.wandb_resume      = False
+        self.wandb_resume_id   = ""
 
         ###########################
         #
         # Training parameters
         #
         ###########################
-        seed = 42,
-        batch_size = 256,
+        self.seed       = 42
+        self.batch_size = 256
 
-        num_steps       = 1_000_000,             # dataset is currently 144,495 steps long (with batch size of 128 = 1200 batchs (num_steps) per epoch. and this would be 8000 epochs)
-        eval_interval   = 10, # 2_000,
-        save_interval   = 20_000,
-        log_interval    = 100,
+        self.num_steps       = 1_000_000             # dataset is currently 144,495 steps long (with batch size of 128 = 1200 batchs (num_steps) per epoch. and this would be 8000 epochs)
+        self.eval_interval   = 2_000
+        self.save_interval   = 20_000
+        self.log_interval    = 100
 
-        sample_rate = 10,                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
+        self.sample_rate = 10                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
-        num_frames 	         = 10 + 1,     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
-        context_length       = 10,
-        prediction_horizon   = 20,         # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
+        self.num_frames 	      = 10 + 1     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
+        self.context_length       = 10
+        self.prediction_horizon   = 20         # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 
-        num_workers = 4,
-        device = "cuda",
+        self.num_workers = 4
+        self.device = "cuda"
 
-        load_full_dataset_to_gpu = True,
+        self.load_full_dataset_to_gpu = True
 
-        infill_patches        = True,
-        scale_tactile_tactile = True,
-        blind_image_data      = False,
-        BeIT                  = False,
+        self.infill_patches        = True
+        self.scale_tactile_tactile = True
+        self.blind_image_data      = False
+        self.BeIT                  = False
 
-        shuffle_buffer_size = 1000,
-        val_shuffle_buffer_size = 1000,
+        self.shuffle_buffer_size = 1000
+        self.val_shuffle_buffer_size = 1000
 
-        viz_steps = [1, 200, 800, 1050, 1350],  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        self.viz_steps = [1, 200, 800, 1050, 1350]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
 
         ###########################
         #
         # optimizer parameters
         #
         ###########################
-        criterion = "MAE",
+        self.criterion = "MAE"
 
-        beta1 	      = 0.9, 
-        beta2 	      = 0.99, 
-        weight_decay  = 1e-4, 
-        learning_rate = 0.001,
+        self.beta1 	       = 0.9 
+        self.beta2 	       = 0.99 
+        self.weight_decay  = 1e-4 
+        self.learning_rate = 0.001
 
         ###########################
         #
         # Transformer parameters
         #
         ###########################
-        image_height = 64,
-        image_width  = 64,
-        patch_size   = 16,
-        transformer_input_height = 16,
-        transformer_input_width  = 16,
-        input_dim   	   = 3,
-        action_dim 		   = 6,
-        tactile_dim 	   = 48,
+        self.image_height             = 64
+        self.image_width              = 64
+        self.patch_size               = 16
+        self.transformer_input_height = 16
+        self.transformer_input_width  = 16
 
-        enc_dim 	  	   = 768,
-        num_heads 	  	   = 12,
-        num_encoder_layers = 2,
-        dropout 		   = 0.2,
-        bias               = True,   # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
+        self.input_dim   	   = 3
+        self.action_dim 	   = 6
+        self.tactile_dim 	   = 48
 
-        dtype 		            = 'float16', 
-        image 					= True, 
-        action 					= True, 
-        tactile 				= True, 
-        mask 			   		= True, 
-        padding 				= False, 
-        tactile_conditioned 	= False, 
-        pretrained_acvp_model_path = "",
-        )
+        self.enc_dim 	  	    = 768
+        self.num_heads 	  	    = 12
+        self.num_encoder_layers = 2
+        self.dropout 		    = 0.2
+        self.bias               = True   # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
 
-    ###########################
-    #
-    # create specific model config for our transformer library to use (build from the config above)
-    #
-    ###########################
-    if config["image"] == True and config["tactile"] == False and config["action"] == False:
-        config["block_size"] = int(((config["image_height"] / config["transformer_input_height"]) * (config["image_width"] / config["transformer_input_width"])) * config["context_length"])
-    if config["image"] == True and config["action"] == True and config["tactile"] == False:
-        config["block_size"] = int(((config["image_height"] / config["transformer_input_height"]) * (config["image_width"] / config["transformer_input_width"])) * config["context_length"]) + (config["context_length"] + 1)
-    if config["image"] == True and config["action"] == True and config["tactile"] == True:
-        config["block_size"] = int(((config["image_height"] / config["transformer_input_height"]) * (config["image_width"] / config["transformer_input_width"])) * config["context_length"]) + (config["context_length"] + 1) + config["context_length"]
+        self.dtype 		            = 'float16' 
+        self.image 					= True 
+        self.action 			    = True 
+        self.tactile 				= True 
+        self.mask 			   		= True 
+        self.padding 				= False 
+        self.tactile_conditioned 	= False 
+        self.pretrained_acvp_model_path = ""
 
-    model_config = dict(
-        block_size = config["block_size"],
-        n_layer = config["num_encoder_layers"],
-        n_head = config["num_heads"],
-        n_embd = config["enc_dim"],
-        dropout = config["dropout"],
-        input_dim = config["input_dim"],
-        H = config["image_height"],
-        bias = config["bias"],
-        W = config["image_width"],
-        fh = config["transformer_input_height"],
-        fw = config["transformer_input_width"],
-        mask = config["mask"],
-        num_frames = config["num_frames"],
-        context_length = config["context_length"],
-        prediction_length = config["num_frames"] - config["context_length"],
-        patches_per_frame =  int((config["image_height"] / config["transformer_input_height"]) * (config["image_width"] / config["transformer_input_width"])),
-        device = config["device"],
-        BeIT = config["BeIT"],
-        tactile_dim = config["tactile_dim"],
-        action = config["action"],
-        action_dim = config["action_dim"],
-        tactile = config["tactile"],
-        image = config["image"],
-        tactile_conditioned = config["tactile_conditioned"],
-        pretrained_acvp_model_path = config["pretrained_acvp_model_path"],
-    )
+        self.model_config = model_config_builder(self)
+    
+    def to_dict(self):
+        ''' returns a dictionary of all the self variables and nest the model_config as well
+            the function must be repeatable '''
+        def recursive_to_dict(obj):
+            if isinstance(obj, dict):
+                return {k: recursive_to_dict(v) for k, v in obj.items()}
+            elif hasattr(obj, "__dict__"):
+                return {k: recursive_to_dict(v) for k, v in obj.__dict__.items()}
+            else:
+                return obj
+        
+        return recursive_to_dict(self)
 
-    config["model_config"] = model_config
-
-    return ConfigDict(config)
+    def __repr__(self):
+        return str(self.to_dict())

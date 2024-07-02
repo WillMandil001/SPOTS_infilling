@@ -38,131 +38,13 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from torch.utils.data import Dataset, DataLoader
 
 
-class VisionTactileDataset(Dataset):
-    def __init__(self, config, map_file, context_len=10, prediction_horizon=10, train=True, wandb_id= ""):
-        self.flags = config
-        self.train = train
-        self.map_file = map_file
-        self.context_len = context_len
-        self.wandb_id = wandb_id
-
-        if train == True:  self.prediction_horizon = 1
-        else:              self.prediction_horizon = prediction_horizon
-
-        self.map_data = np.load(self.map_file, allow_pickle=True)
-        if config.debug:
-            self.map_data = self.map_data[0:10]
-        self.build_dataset()
-
-    def __len__(self):
-        return self.total_sequences
-
-    def __getitem__(self, idx):
-        if self.flags.config.pre_load_data:
-            start_index = self.sample_index_list[idx]
-            robot_state, image_data, tactile_data = [], [], []
-            for i in range(0, (self.context_len + self.prediction_horizon)*self.flags.config.sample_rate, self.flags.config.sample_rate):
-                step_data = self.data[start_index + i]
-                if self.flags.config.action:      robot_state.append(step_data[0])
-                if self.flags.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
-                if self.flags.config.tactile:     tactile_data.append(step_data[2].flatten())
-        else:
-            steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
-            robot_state, image_data, tactile_data  = [], [], []
-            for save_name in steps:
-                step_data = np.load(save_name, allow_pickle=True)
-                if self.flags.config.action:      robot_state.append(step_data[()]["state"].astype(np.float32) / 255)
-                if self.flags.config.image:       image_data.append(step_data[()]['image'].astype(np.float32) / 255)
-                if self.flags.config.tactile:     tactile_data.append(step_data[()]['tactile'].astype(np.float32))
-
-        if self.flags.config.action:   robot_state = np.stack(robot_state, axis=0)         # shape is robot=[c+p, bs, 6]
-        if self.flags.config.image:    image_data  = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
-        if self.flags.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)  # shape is tactile=[c+p, bs, 48]
-
-        return torch.tensor(robot_state), torch.tensor(image_data).permute(0, 3, 1, 2) ,torch.tensor(tactile_data)
-
-    def build_dataset(self):
-        self.total_sequences = 0
-        self.sequences = []
-        for episode in self.map_data:
-            episode_length = episode['episode_length']
-            valid_sequences = episode_length - ((self.context_len + self.prediction_horizon - 1)*self.flags.config.sample_rate)
-            if valid_sequences > 0:
-                self.total_sequences += valid_sequences
-                self.sequences += episode['step_save_name_list'][self.context_len + self.prediction_horizon - 1:]  #  TODO not needed for pre-loaded datasets and needs a fix for sample_rate stuff 
-
-        if self.flags.config.pre_load_data:
-            self.data = []
-            self.sample_index_list = []
-            current_index = 0
-            for episode in tqdm(self.map_data, desc="Loading data", dynamic_ncols=True):
-                episode_length = episode['episode_length']
-                for step_num, save_name in enumerate(episode['step_save_name_list']):
-                    save_name = save_name.replace(self.flags.config.to_replace, self.flags.config.replace_with)            # overwrite location if it has changed:
-                    step_data = np.load(save_name, allow_pickle=True)
-                    robot_state  = step_data[()]["state"]
-                    image_data   = step_data[()]['image']
-                    tactile_data = step_data[()]['tactile']
-                    if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.flags.config.sample_rate:
-                        self.sample_index_list += [current_index]
-                    current_index += 1
-                    self.data.append([robot_state, image_data, tactile_data])
-
-        if self.flags.config.scale_tactile_tactile:
-            tactile_data = np.array([i[2] for i in self.data])
-            robot_state_data  = np.array([i[0] for i in self.data])
-
-            # Create MinMaxScaler instances for each axis
-            if self.train == True:
-                self.tactile_scaler_x   = MinMaxScaler(feature_range=(0, 1))
-                self.tactile_scaler_y   = MinMaxScaler(feature_range=(0, 1))
-                self.tactile_scaler_z   = MinMaxScaler(feature_range=(0, 1))
-                self.robot_state_norm   = StandardScaler()
-                self.robot_state_scaler = MinMaxScaler(feature_range=(0, 1))
-            else: # load the scalars from the save_dir:
-                self.tactile_scaler_x   = joblib.load(os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                self.tactile_scaler_y   = joblib.load(os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                self.tactile_scaler_z   = joblib.load(os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
-                self.robot_state_norm   = joblib.load(os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
-                self.robot_state_scaler = joblib.load(os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
-
-            # Fit the scalers on the corresponding slices of the tactile data
-            self.tactile_scaler_x.fit(tactile_data[:, 0, :])
-            self.tactile_scaler_y.fit(tactile_data[:, 1, :])
-            self.tactile_scaler_z.fit(tactile_data[:, 2, :])
-
-            # Transform the data (tactile)
-            tactile_data[:, 0, :] = self.tactile_scaler_x.transform(tactile_data[:, 0, :])
-            tactile_data[:, 1, :] = self.tactile_scaler_y.transform(tactile_data[:, 1, :])
-            tactile_data[:, 2, :] = self.tactile_scaler_z.transform(tactile_data[:, 2, :])
-
-            # normalise then scale the data (action) - we have to do this in two steps
-            self.robot_state_norm.fit(robot_state_data)
-            robot_state_data      = self.robot_state_norm.transform(robot_state_data)
-            self.robot_state_scaler.fit(robot_state_data)
-            robot_state_data      = self.robot_state_scaler.transform(robot_state_data)
-
-            viz_tactile_histogram(tactile_data)
-
-            for i in range(len(self.data)):
-                self.data[i][2] = tactile_data[i]
-                self.data[i][0] = robot_state_data[i]
-
-            if self.train:
-                os.makedirs(os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id), exist_ok=True)
-                joblib.dump(self.tactile_scaler_x,   os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                joblib.dump(self.tactile_scaler_y,   os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                joblib.dump(self.tactile_scaler_z,   os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
-                joblib.dump(self.robot_state_norm,   os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
-                joblib.dump(self.robot_state_scaler, os.path.join(self.flags.config.save_dir, self.flags.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
-
 ###########################
 #
 # Vizualisation functions
 #
 ###########################
 
-def viz_image_figure(ground_truth, predicted_frames, config, step):
+def viz_image_figure(ground_truth, predicted_frames, config, step, step_name):
     fig, axes = plt.subplots(2, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
     for j in range(config.prediction_horizon):
         ax = axes[0, j]
@@ -174,10 +56,10 @@ def viz_image_figure(ground_truth, predicted_frames, config, step):
         ax.axis('off')
         ax.set_title(f"Pred {j+1}")
     plt.tight_layout()
-    wandb.log({"viz_{}".format(i): wandb.Image(fig)}, step=step)
+    wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 
-def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, step):        # we want to plot each of the 16 features in a 4x4 grid over the ts frames:
+def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, step, step_name):        # we want to plot each of the 16 features in a 4x4 grid over the ts frames:
     fig, axes = plt.subplots(4, 4, figsize=(12, 12))
     x_pred = predicted_frames_tactile[:, :16].cpu().numpy()
     x_gt = ground_truth_tactile[0][:, :16].cpu().numpy()
@@ -199,7 +81,7 @@ def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, s
         ax.set_title(f"Feature {i}")
     fig.legend(["x gt", "x pred", "y gt", "y pred", "z gt", "z pred"], loc='lower center', ncol=3)
     plt.tight_layout()
-    wandb.log({"viz_tactile_{}".format(i): wandb.Image(fig)}, step=step)
+    wandb.log({"viz_tactile_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 
 def viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, config, step):
@@ -245,67 +127,11 @@ def viz_tactile_histogram(tactile_data):
     wandb.log({"tactile_histogram": wandb.Image(plt)}, step=0)
     plt.close()
 
-
 ###########################
 #
 # Training and Validation functions
 #
 ###########################
-def train_step(batch, flags, scaler, model, optimizer, criterion, timer):
-    pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss = format_and_run_batch(batch, flags.config, model, criterion, timer, horizon_rollout=False)
-    scaler.scale(total_loss).backward()
-    scaler.step(optimizer)
-    scaler.update()
-    optimizer.zero_grad(set_to_none=True)
-    update_info = {"grad_norm": torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0),
-                    "lr": optimizer.param_groups[0]["lr"],
-                    "loss": total_loss.item()}
-    if flags.config.image:    update_info["image_loss"] = loss.item()
-    if flags.config.tactile:  update_info["tactile_loss"] = tactile_loss.item()    
-
-    return update_info
-
-def val_step(step, flags, model, criterion, val_dataloader, timer):
-    val_metrics = {}
-    with torch.no_grad():
-        model.eval()
-        for i, batch in enumerate(val_dataloader):
-            pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss = format_and_run_batch(batch, flags.config, model, criterion, timer, horizon_rollout=False)
-            val_metrics["validation_loss"] = val_metrics.get("loss", 0) + total_loss.item()
-            if flags.config.tactile:  val_metrics["tactile_loss"] = val_metrics.get("tactile_loss", 0) + tactile_loss.item()
-            if flags.config.image:    val_metrics["image_loss"] = val_metrics.get("image_loss", 0) + loss.item()
-    val_metrics = tree_map(lambda x: x / (step + 1), val_metrics)
-    return val_metrics
-
-def viz_step(step, flags, model, criterion, viz_dataloader, timer):
-    with torch.no_grad():
-        model.eval()
-        combined_losses, image_loss_list, tactile_loss_list = [], [], []
-        loss_sequences_image, loss_sequences_tactile, loss_sequences_combined = [], [], []
-        for i, batch in enumerate(viz_dataloader):
-            if i not in flags.config.viz_steps:  continue
-            (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
-            loss_sequence_image, loss_sequence_tactile, loss_sequence_combined) = format_and_run_batch(batch, flags.config, model, criterion, timer, horizon_rollout=True)
-            if flags.config.image:
-                viz_image_figure(image_groundtruth, rollout_image_prediction, flags.config, step)
-                image_loss_list.append(image_losses.item())
-                loss_sequences_image.append(loss_sequence_image)
-            if flags.config.tactile:
-                viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, flags.config, step)
-                tactile_loss_list.append(tactile_losses.item())
-                loss_sequences_tactile.append(loss_sequence_tactile)
-            if flags.config.image and flags.config.tactile:
-                combined_losses.append(combined_total_loss.item())
-                loss_sequences_combined.append(loss_sequence_combined)
-
-    viz_metrics = {}
-    if flags.config.image and flags.config.tactile:  viz_metrics["rollout combined loss {}".format(flags.config.prediction_horizon)] = np.mean(combined_losses)
-    if flags.config.image:                           viz_metrics["rollout image loss {}".format(flags.config.prediction_horizon)]    = np.mean(image_loss_list)
-    if flags.config.tactile:                         viz_metrics["rollout tactile loss {}".format(flags.config.prediction_horizon)]  = np.mean(tactile_loss_list)
-
-    viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, flags.config, step)
-    return viz_metrics
-
 def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout):
     image_context, image_predict, tactile_context, tactile_predict, robot_data = None, None, None, None, None
     if horizon_rollout:
@@ -399,16 +225,12 @@ def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_conte
 #
 ###########################
 
-
 def save_model(model, name, config, wandb_id):
     os.makedirs(config.save_dir + "/" + config.model_name + "/" + wandb_id + "/", exist_ok=True)
     torch.save(model.state_dict(), config.save_dir + "/" + config.model_name + "/" + wandb_id + "/" + name + ".pth")  # save the model
 
 def wandb_log(info, step):
     wandb.log(flatten_dict(info, sep="/"), step=step)
-
-
-
 
 def format_name_with_config(name, config):
     """Formats a name string with a config dict.

@@ -69,11 +69,11 @@ class VisionTactileDataset(Dataset):
                 if self.config.image:       image_data.append(step_data[()]['image'].astype(np.float32) / 255)
                 if self.config.tactile:     tactile_data.append(step_data[()]['tactile'].astype(np.float32))
 
-        if self.config.action:   robot_state  = torch.tensor(np.stack(robot_state, axis=0))    # shape is robot=[c+p, bs, 6]
-        if self.config.image:    image_data   = torch.tensor(np.stack(image_data, axis=0))     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
-        if self.config.tactile:  tactile_data = torch.tensor(np.stack(tactile_data, axis=0))   # shape is tactile=[c+p, bs, 48]
+        if self.config.action:   robot_state  = np.stack(robot_state, axis=0)    # shape is robot=[c+p, bs, 6]
+        if self.config.image:    image_data   = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
+        if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
 
-        return robot_state, image_data ,tactile_data
+        return torch.tensor(robot_state), torch.tensor(image_data) , torch.tensor(tactile_data)
 
     def build_dataset(self):
         self.total_sequences = 0
@@ -165,9 +165,6 @@ def main(_):
     logging.info("Wandb logs saved to %s", wandb.run.dir)
     logging.info("Wandb url: %s", wandb.run.get_url())
 
-    if config.debug:
-        config.eval_interval = 10
-
     ###########################
     # Load the dataset  | load the tfrecords RLDS dataset saved locally at: /home/wmandil/tensorflow_datasets/robot_pushing_dataset/1.0.0
     ###########################
@@ -212,7 +209,7 @@ def main(_):
     # Define the training functions
     ###########################
     def train_step(batch, config, scaler, model, optimizer, criterion, timer):
-        pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
+        pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
         scaler.scale(total_loss).backward()
         scaler.step(optimizer)
         scaler.update()
@@ -230,7 +227,7 @@ def main(_):
         with torch.no_grad():
             model.eval()
             for i, batch in enumerate(val_dataloader):
-                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
+                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
                 val_metrics["validation_loss"] = val_metrics.get("loss", 0) + total_loss.item()
                 if config.tactile:  val_metrics["Validation: tactile loss"] = val_metrics.get("tactile_loss", 0) + tactile_loss.item()
                 if config.image:    val_metrics["Validation: image loss"] = val_metrics.get("image_loss", 0) + loss.item()
@@ -240,14 +237,17 @@ def main(_):
     def viz_step(step, config, model, criterion, viz_dataloader, timer):
         with torch.no_grad():
             model.eval()
+            input_frames = []
             combined_losses, image_loss_list, tactile_loss_list = [], [], []
             loss_sequences_image, loss_sequences_tactile, loss_sequences_combined = [], [], []
             for i, batch in enumerate(viz_dataloader):
                 if i not in config.viz_steps:  continue
                 (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
-                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True)
+                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True)
                 if config.image:
-                    train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, config, step, step_name=i)
+                    if config.infill_patches:
+                        input_frames = batch[1][:, :config.context_length, :, :, :]
+                    train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
                     image_loss_list.append(image_losses.item())
                     loss_sequences_image.append(loss_sequence_image)
                 if config.tactile:

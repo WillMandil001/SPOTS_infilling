@@ -43,19 +43,29 @@ class Config:
         #
         ###########################
         self.debug             = False
+        self.cluster           = True
 
-        self.pre_load_data     = True
-        self.dataset_name      = "robot_grasping_dataset"
-        self.dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/"  # for the cluster machine: /shared/home/wmandil/datasets/robot_pushing/train/formatted_dataset/
-        self.dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/"    # for the cluster machine: /shared/home/wmandil/datasets/robot_pushing/val/formatted_dataset/
-        self.save_dir          = "/home/wmandil/robotics/saved_models/"                                    # for the cluster machine: /shared/home/wmandil/saved_models/
+        if self.cluster == False:
+            self.pre_load_data     = True
+            self.dataset_name      = "robot_grasping_dataset"
+            self.dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/"
+            self.dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/"
+            self.save_dir          = "/home/wmandil/robotics/saved_models/"
 
-        # if you moved the dataset post formatting, you can use the following to replace the old path with the new one
-        self.to_replace   = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
-        self.replace_with = "/home/wmandil/robotics/datasets/robot_pushing/"  # for the cluster machine: /shared/home/wmandil/datasets/robot_pushing/
+            # if you moved the dataset post formatting, you can use the following to replace the old path with the new one
+            self.to_replace   = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
+            self.replace_with = "/home/wmandil/robotics/datasets/robot_pushing/"
 
-        self.model_name      = "ACVTPGPT"
-        self.experiment_name = self.model_name
+        if self.cluster:
+            self.dataset_train_dir = "/shared/home/wmandil/datasets/robot_pushing/train/formatted_dataset/"
+            self.dataset_val_dir   = "/shared/home/wmandil/datasets/robot_pushing/val/formatted_dataset/"
+            self.save_dir          = "/shared/home/wmandil/saved_models/"
+            self.to_replace        = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
+            self.replace_with      = "/shared/home/wmandil/datasets/robot_pushing/"
+
+        self.model_name      = "AC-VTGPT"  # VPGPT, AC-VGPT, AC-VTGPT
+        self.test_version    = "v1"
+        self.experiment_name = self.model_name + " - " + self.test_version
         self.date_and_time   = datetime.datetime.now().strftime("%m%d_%H%M%S")
 
         self.wandb             = dict(project="SPOTS_pushing_debug")
@@ -71,9 +81,10 @@ class Config:
         self.batch_size = 256
 
         self.num_steps       = 25_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
-        self.eval_interval   = 10 # 500
         self.save_interval   = 1_000
         self.log_interval    = 100
+        if self.debug: self.eval_interval   = 10
+        else:          self.eval_interval   = 500      
 
         self.sample_rate = 10                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
@@ -116,6 +127,7 @@ class Config:
         ###########################
         self.image_height             = 64
         self.image_width              = 64
+
         self.patch_size               = 16
         self.transformer_input_height = 16
         self.transformer_input_width  = 16

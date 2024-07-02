@@ -33,17 +33,29 @@ from flax.traverse_util import flatten_dict
 #
 ###########################
 
-def viz_image_figure(ground_truth, predicted_frames, config, step, step_name):
-    fig, axes = plt.subplots(2, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
+def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step, step_name):
+    if config.infill_patches:
+        fig, axes = plt.subplots(3, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
+    else:
+        fig, axes = plt.subplots(2, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
     for j in range(config.prediction_horizon):
         ax = axes[0, j]
         ax.imshow(ground_truth[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
         ax.axis('off')
         ax.set_title(f"GT {j+1}")
-        ax = axes[1, j]
+        if config.infill_patches: ax = axes[2, j]
+        else:                     ax = axes[1, j]
         ax.imshow(predicted_frames[j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
         ax.axis('off')
         ax.set_title(f"Pred {j+1}")
+
+    if config.infill_patches:
+        for j in range(input_frames.shape[1]):
+            ax = axes[1, j]
+            ax.imshow(input_frames[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+            ax.axis('off')
+            ax.set_title(f"Input {j+1}")
+
     plt.tight_layout()
     wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
@@ -154,15 +166,16 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
     if horizon_rollout:
         (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
         loss_sequence_image, loss_sequence_tactile, loss_sequence_combined) = rollout_sequence(image_context, image_predict, robot_data, tactile_context, tactile_predict, config, model, criterion) # TODO: add tactile data
-        return rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, loss_sequence_image, loss_sequence_tactile, loss_sequence_combined
+        return rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context
     else:
         with timer("train"): pred_image, pred_tactile, total_loss, loss, tactile_loss = model(image_context, targets=image_predict, actions=robot_data, tactiles=tactile_context, tactile_targets=tactile_predict)        # forward pass
-        return pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss
+        return pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context
 
 
 def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_context, tactile_groundtruth, config, model, criterion):
     predicted_image_sequence = []
     predicted_tactile_sequence = []
+    image_predict, robot_data_sequence, tactile_predict = None, None, None
     rollout_image_prediction, rollout_tactile_prediction = None, None
     image_losses, tactile_losses, combined_total_loss = None, None, None
     robot_data_sequence = None

@@ -33,20 +33,26 @@ class model_config_builder():
         self.image = config.image
         self.tactile_conditioned = config.tactile_conditioned
         self.pretrained_acvp_model_path = config.pretrained_acvp_model_path
+        self.load_pretrained_image_model     = config.load_pretrained_image_model
+        self.freeze_image_model              = config.freeze_image_model
+        self.load_pretrained_ac_image_model  = config.load_pretrained_ac_image_model
+        self.freeze_ac_image_model           = config.freeze_ac_image_model
+        self.load_pretrained_image_tokenizer = config.load_pretrained_image_tokenizer
+        self.freeze_image_tokenizer          = config.freeze_image_tokenizer
+        self.load_pretrained_image_decoder   = config.load_pretrained_image_decoder
+        self.freeze_image_decoder            = config.freeze_image_decoder
 
 class Config:
     # add model config
     def __init__(self):
         ###########################
-        #
         # General parameters
-        #
         ###########################
         self.debug             = False
-        self.cluster           = True
+        self.cluster           = False
+        self.pre_load_data     = True
 
         if self.cluster == False:
-            self.pre_load_data     = True
             self.dataset_name      = "robot_grasping_dataset"
             self.dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/"
             self.dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/"
@@ -63,19 +69,17 @@ class Config:
             self.to_replace        = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
             self.replace_with      = "/shared/home/wmandil/datasets/robot_pushing/"
 
-        self.model_name      = "AC-VTGPT"  # VPGPT, AC-VGPT, AC-VTGPT
+        self.model_name      = "AC-VTGPT-infill"  # VPGPT, AC-VGPT, AC-VTGPT
         self.test_version    = "v1"
         self.experiment_name = self.model_name + " - " + self.test_version
         self.date_and_time   = datetime.datetime.now().strftime("%m%d_%H%M%S")
 
-        self.wandb             = dict(project="SPOTS_pushing_debug")
+        self.wandb             = dict(project="SPOTS_pushing_home_pc")
         self.wandb_resume      = False
         self.wandb_resume_id   = ""
 
         ###########################
-        #
         # Training parameters
-        #
         ###########################
         self.seed       = 42
         self.batch_size = 256
@@ -84,7 +88,7 @@ class Config:
         self.save_interval   = 1_000
         self.log_interval    = 100
         if self.debug: self.eval_interval   = 10
-        else:          self.eval_interval   = 500      
+        else:          self.eval_interval   = 10 # 500      
 
         self.sample_rate = 10                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
@@ -99,19 +103,42 @@ class Config:
 
         self.scale_data            = True
 
-        self.infill_patches        = True
         self.blind_image_data      = False
         self.BeIT                  = False
 
-        self.shuffle_buffer_size = 1000
+        self.shuffle_buffer_size     = 1000
         self.val_shuffle_buffer_size = 1000
 
         self.viz_steps = [1, 200, 800, 1050, 1350]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        
+        ###########################
+        # Pre-loading parameters (whether to aspects of the model from a pretrained model)
+        ###########################
+        self.load_pretrained_image_model     = None  # set to None or a path to the saved models .zip
+        self.freeze_image_model              = False
+
+        self.load_pretrained_ac_image_model  = None  # set to None or a path to the saved models .zip
+        self.freeze_ac_image_model           = False
+
+        self.load_pretrained_image_tokenizer = None  # set to None or a path to the saved models .zip
+        self.freeze_image_tokenizer          = True
+
+        self.load_pretrained_image_decoder   = None  # set to None or a path to the saved models .zip
+        self.freeze_image_decoder            = False
 
         ###########################
-        #
+        # Infilling parameters
+        ###########################
+        self.infill_patches         = True
+        self.min_infill_patch_size  = 1
+        self.max_infill_patch_size  = 32
+
+        self.repeatable_infil_y_pos      = 15
+        self.repeatable_infil_x_pos      = 15
+        self.repeatable_infil_patch_size = 25
+
+        ###########################
         # optimizer parameters
-        #
         ###########################
         self.criterion = "MAE"
 
@@ -121,9 +148,7 @@ class Config:
         self.learning_rate = 0.001
 
         ###########################
-        #
         # Transformer parameters
-        #
         ###########################
         self.image_height             = 64
         self.image_width              = 64

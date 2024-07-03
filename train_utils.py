@@ -86,7 +86,7 @@ def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, s
     plt.close(fig)
 
 def viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, config, step):
-    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 5))
     if config.image and config.tactile:
         loss_sequences_combined = np.array(loss_sequences_combined)
         mean_loss = np.mean(loss_sequences_combined, axis=0)
@@ -133,16 +133,22 @@ def viz_tactile_histogram(tactile_data):
 # Training and Validation functions
 #
 ###########################
-def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout):
+def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout, repeatable_infill=False):
     image_context, image_predict, tactile_context, tactile_predict, robot_data = None, None, None, None, None
     if horizon_rollout:
         if config.image:
             image_context = batch[1][:, :config.context_length, ...].to(config.device)    # take all but the last image          shape = [bs, c, 64, 64, 3])
             image_predict = batch[1][:,  config.context_length:, ...].to(config.device)   # take just the last image             shape = [bs, p,     64, 64, 3])
             if config.infill_patches:
-                x = np.random.randint(0, config.image_height - config.patch_size)
-                y = np.random.randint(0, config.image_width  - config.patch_size)
-                image_context[:, :, :, x:x+config.patch_size, y:y+config.patch_size] = 0.0
+                if repeatable_infill:
+                    x = config.repeatable_infil_x_pos
+                    y = config.repeatable_infil_y_pos
+                    infill_patch_size = config.repeatable_infil_patch_size
+                else:
+                    infill_patch_size = np.random.randint(config.min_infill_patch_size, config.max_infill_patch_size)
+                    x = np.random.randint(0, config.image_height - infill_patch_size)
+                    y = np.random.randint(0, config.image_width  - infill_patch_size)
+                image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
         if config.action:
             robot_data    = batch[0].to(config.device)                                          # take the full sequence of robot data shape = [bs, c+p,   6])       
         if config.tactile:
@@ -153,9 +159,15 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
             image_context = batch[1][:, :-1, ...].to(config.device)    # take all but the last image          shape = [bs, c+p-1, 64, 64, 3])
             image_predict = batch[1][:,  1:, ...].to(config.device)    # take just the last image             shape = [bs, 1,     64, 64, 3])
             if config.infill_patches:
-                x = np.random.randint(0, config.image_height - config.patch_size)
-                y = np.random.randint(0, config.image_width  - config.patch_size)
-                image_context[:, :, :, x:x+config.patch_size, y:y+config.patch_size] = 0.0
+                if repeatable_infill:
+                    x = config.repeatable_infil_x_pos
+                    y = config.repeatable_infil_y_pos
+                    infill_patch_size = config.repeatable_infil_patch_size
+                else:
+                    infill_patch_size = np.random.randint(config.min_infill_patch_size, config.max_infill_patch_size)
+                    x = np.random.randint(0, config.image_height - infill_patch_size)
+                    y = np.random.randint(0, config.image_width  - infill_patch_size)
+                image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
         if config.action:
             robot_data    = batch[0].to(config.device)                   # take the full sequence of robot data shape = [bs, c+p,   6])
         if config.tactile:

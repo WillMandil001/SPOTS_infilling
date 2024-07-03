@@ -290,24 +290,38 @@ class VPGPT(nn.Module):
 			decode_and_depatch = nn.ConvTranspose2d(in_channels=config.n_embd, out_channels=config.input_dim, kernel_size=(config.fh, config.fw), stride=(config.fh, config.fw), padding=0),
 			sig = nn.Sigmoid()
 			))
-		
+
 		if config.action:
-			self.transformer.action_embedding = nn.Linear(config.action_dim, config.n_embd)
+			self.transformer.action_embedding  = nn.Linear(config.action_dim, config.n_embd)
 
 		if config.tactile:
 			self.transformer.tactile_embedding = nn.Linear(config.tactile_dim, config.n_embd)
-			self.transformer.tactile_debedding  = nn.Linear(config.n_embd, config.tactile_dim)
+			self.transformer.tactile_debedding = nn.Linear(config.n_embd, config.tactile_dim)
+
+		if self.config.load_pretrained_image_tokenizer:  self.transformer.patch_and_embed    = torch.load(self.config.load_pretrained_image_tokenizer).patch_and_embed   # loads the whole VGPT model
+		if self.config.load_pretrained_image_decoder:    self.transformer.decode_and_depatch = torch.load(self.config.load_pretrained_image_decoder).decode_and_depatch  # loads the whole VGPT model
+		if self.config.load_pretrained_image_model:      self.transformer.prior_model        = torch.load(self.config.load_pretrained_image_model) 						 # loads the whole VGPT model
+		if self.config.load_pretrained_ac_image_model:   self.transformer.prior_model	     = torch.load(self.config.load_pretrained_ac_image_model) 					 # loads the whole VGPT model
 
 		self.apply(self._init_weights)                                                        # careful initialization
 		for pn, p in self.named_parameters():
 			if pn.endswith('c_proj.weight'):                                                  # apply special scaled init to the residual projections, per GPT-2 paper
 				torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
+		if self.config.freeze_image_tokenizer:       	 self.transformer.patch_and_embed.weight.requires_grad = False
+		if self.config.freeze_image_decoder:         	 self.transformer.decode_and_depatch.weight.requires_grad = False
+		if self.config.freeze_image_model:           	 self.transformer.prior_model.weight.requires_grad = False
+		if self.config.freeze_ac_image_model:        	 self.transformer.prior_model.weight.requires_grad = False
+
 	def get_attention_mask(self):
 		return self.transformer.h[0].attn.viz_mask()
 
 	def forward(self, idx, targets=None, actions=None, tactiles=None, tactile_targets=None):
 		device = idx.device
+
+		# pre-process the input if we are using a pretrained model for the image tokenizer
+		if self.config.load_pretrained_image_model:     idx, _, _, _, _ = self.transformer.prior_model(idx, targets, actions, tactiles, tactile_targets)
+		if self.config.load_pretrained_ac_image_model:  idx, _, _, _, _ = self.transformer.prior_model(idx, targets, actions, tactiles, tactile_targets)
 
 		tok_emb = idx.view(-1, self.config.input_dim, self.config.H, self.config.W)
 		tok_emb = self.transformer.patch_and_embed(tok_emb)  # shape (b, n_embd, t, t)

@@ -44,8 +44,7 @@ class VisionTactileDataset(Dataset):
         else:              self.prediction_horizon = prediction_horizon
 
         self.map_data = np.load(self.map_file, allow_pickle=True)
-        if config.debug:
-            self.map_data = self.map_data[0:10]
+        self.map_data = self.map_data[0:10]
         self.build_dataset()
 
     def __len__(self):
@@ -103,8 +102,8 @@ class VisionTactileDataset(Dataset):
                     self.data.append([robot_state, image_data, tactile_data])
 
         if self.config.scale_data:
-            tactile_data      = np.array([i[2] for i in self.data])
-            robot_state_data  = np.array([i[0] for i in self.data])
+            tactile_data     = np.array([i[2] for i in self.data])
+            robot_state_data = np.array([i[0] for i in self.data])
 
             # Create MinMaxScaler instances for each axis
             if self.train == True:
@@ -227,7 +226,7 @@ def main(_):
         with torch.no_grad():
             model.eval()
             for i, batch in enumerate(val_dataloader):
-                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
+                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False, repeatable_infill=True)
                 val_metrics["validation_loss"] = val_metrics.get("loss", 0) + total_loss.item()
                 if config.tactile:  val_metrics["Validation: tactile loss"] = val_metrics.get("tactile_loss", 0) + tactile_loss.item()
                 if config.image:    val_metrics["Validation: image loss"] = val_metrics.get("image_loss", 0) + loss.item()
@@ -243,7 +242,7 @@ def main(_):
             for i, batch in enumerate(viz_dataloader):
                 if i not in config.viz_steps:  continue
                 (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
-                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True)
+                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True)
                 if config.image:
                     if config.infill_patches:
                         input_frames = batch[1][:, :config.context_length, :, :, :]

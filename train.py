@@ -44,7 +44,6 @@ class VisionTactileDataset(Dataset):
         else:              self.prediction_horizon = prediction_horizon
 
         self.map_data = np.load(self.map_file, allow_pickle=True)
-        self.map_data = self.map_data[0:10]
         self.build_dataset()
 
     def __len__(self):

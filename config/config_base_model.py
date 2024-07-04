@@ -48,8 +48,8 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = False
-        self.cluster           = False
+        self.debug             = True
+        self.cluster           = True
         self.pre_load_data     = True
 
         if self.cluster == False:
@@ -88,13 +88,13 @@ class Config:
         self.save_interval   = 1_000
         self.log_interval    = 100
         if self.debug: self.eval_interval   = 10
-        else:          self.eval_interval   = 10 # 500      
+        else:          self.eval_interval   = 500 # 500      
 
-        self.sample_rate = 10                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
+        self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
         self.num_frames 	      = 10 + 1     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
         self.context_length       = 10
-        self.prediction_horizon   = 20         # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
+        self.prediction_horizon   = 100         # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 
         self.num_workers = 4
         self.device = "cuda"

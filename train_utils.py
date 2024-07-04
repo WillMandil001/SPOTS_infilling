@@ -38,7 +38,11 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
         fig, axes = plt.subplots(3, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
     else:
         fig, axes = plt.subplots(2, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
-    for j in range(config.prediction_horizon):
+
+    if config.prediction_horizon > 20: sample_rate = config.prediction_horizon // 20
+    else: sample_rate = 1
+
+    for j in range(sample_rate-1, config.prediction_horizon, sample_rate):
         ax = axes[0, j]
         ax.imshow(ground_truth[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
         ax.axis('off')

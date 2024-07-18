@@ -1,13 +1,15 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import math
+import yaml
+import torch
+import inspect
+import torch.nn as nn
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
 from torch import Tensor
-from transformers import AutoTokenizer
-import inspect
+from types import SimpleNamespace
 from dataclasses import dataclass
+from transformers import AutoTokenizer
 
 
 class LayerNorm(nn.Module):
@@ -298,20 +300,29 @@ class VPGPT(nn.Module):
 			self.transformer.tactile_embedding = nn.Linear(config.tactile_dim, config.n_embd)
 			self.transformer.tactile_debedding = nn.Linear(config.n_embd, config.tactile_dim)
 
-		if self.config.load_pretrained_image_tokenizer:  self.transformer.patch_and_embed    = torch.load(self.config.load_pretrained_image_tokenizer).patch_and_embed   # loads the whole VGPT model
-		if self.config.load_pretrained_image_decoder:    self.transformer.decode_and_depatch = torch.load(self.config.load_pretrained_image_decoder).decode_and_depatch  # loads the whole VGPT model
-		if self.config.load_pretrained_image_model:      self.transformer.prior_model        = torch.load(self.config.load_pretrained_image_model) 						 # loads the whole VGPT model
-		if self.config.load_pretrained_ac_image_model:   self.transformer.prior_model	     = torch.load(self.config.load_pretrained_ac_image_model) 					 # loads the whole VGPT model
-
-		self.apply(self._init_weights)                                                        # careful initialization
+		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:      
+			pretrained_image_model_config_path = config.pretrained_config_path
+			with open(pretrained_image_model_config_path, 'r') as file:  pretrained_image_model_config = yaml.load(file, Loader=yaml.FullLoader)
+			pretrained_image_model_config = SimpleNamespace(**pretrained_image_model_config["model_config"]["value"])
+			self.transformer["prior_model"] = VPGPT(pretrained_image_model_config)
+	
+		self.apply(self._init_weights)  # careful initialization
 		for pn, p in self.named_parameters():
-			if pn.endswith('c_proj.weight'):                                                  # apply special scaled init to the residual projections, per GPT-2 paper
+			if pn.endswith('c_proj.weight'):  # apply special scaled init to the residual projections, per GPT-2 paper
 				torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
-		if self.config.freeze_image_tokenizer:       	 self.transformer.patch_and_embed.weight.requires_grad = False
-		if self.config.freeze_image_decoder:         	 self.transformer.decode_and_depatch.weight.requires_grad = False
-		if self.config.freeze_image_model:           	 self.transformer.prior_model.weight.requires_grad = False
-		if self.config.freeze_ac_image_model:        	 self.transformer.prior_model.weight.requires_grad = False
+		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:
+			self.transformer.prior_model.load_state_dict(torch.load(self.config.pretrained_model_path))
+
+		if self.config.load_pretrained_image_tokenizer:  
+			pretrained_state_dict = torch.load(self.config.pretrained_model_path)
+			patch_and_embed_state_dict = {k.replace('transformer.patch_and_embed.', ''): v for k, v in pretrained_state_dict.items() if 'transformer.patch_and_embed.' in k}
+			self.transformer.patch_and_embed.load_state_dict(patch_and_embed_state_dict)
+
+		if self.config.load_pretrained_image_decoder:    
+			pretrained_state_dict = torch.load(self.config.pretrained_model_path)
+			decode_and_depatch_state_dict = {k.replace('transformer.decode_and_depatch.', ''): v for k, v in pretrained_state_dict.items() if 'transformer.decode_and_depatch.' in k}
+			self.transformer.decode_and_depatch.load_state_dict(decode_and_depatch_state_dict)
 
 	def get_attention_mask(self):
 		return self.transformer.h[0].attn.viz_mask()
@@ -320,10 +331,12 @@ class VPGPT(nn.Module):
 		device = idx.device
 
 		# pre-process the input if we are using a pretrained model for the image tokenizer
-		if self.config.load_pretrained_image_model:     idx, _, _, _, _ = self.transformer.prior_model(idx, targets, actions, tactiles, tactile_targets)
-		if self.config.load_pretrained_ac_image_model:  idx, _, _, _, _ = self.transformer.prior_model(idx, targets, actions, tactiles, tactile_targets)
+		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:
+			new_idx, _, _, _, _ = self.transformer.prior_model(idx, targets, actions, tactiles, tactile_targets)
+			tok_emb = new_idx.view(-1, self.config.input_dim, self.config.H, self.config.W)
+		else:
+			tok_emb = idx.view(-1, self.config.input_dim, self.config.H, self.config.W)
 
-		tok_emb = idx.view(-1, self.config.input_dim, self.config.H, self.config.W)
 		tok_emb = self.transformer.patch_and_embed(tok_emb)  # shape (b, n_embd, t, t)
 
 		patch_size = tok_emb.shape[2]
@@ -396,6 +409,10 @@ class VPGPT(nn.Module):
 		return n_params
 
 	def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+		if self.config.freeze_image_model or self.config.freeze_ac_image_model:
+			for param in self.transformer.prior_model.parameters():
+				param.requires_grad = False
+	
 		param_dict = {pn: p for pn, p in self.named_parameters()}                 # start with all of the candidate parameters
 		param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}   # filter out those that do not require grad
 		# create optim groups. Any parameters that is 2D will be weight decayed, otherwise no. i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.

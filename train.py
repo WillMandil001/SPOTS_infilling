@@ -1,7 +1,9 @@
 import os
 import wandb
 import torch
+import click
 import joblib
+import argparse
 import datetime
 import numpy as np
 import torch.nn as nn
@@ -18,7 +20,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 # data logging and visualization
-from absl import app, logging
+from absl import app, logging, flags
 
 # TODO:
 # [ ] Add the dataset to the GPU straight away instead of moving it in the training loop
@@ -26,8 +28,10 @@ from absl import app, logging
 ###########################
 # Set up the Flags for the training
 ###########################
-from config.config_base_model import Config
-config = Config()
+FLAGS = flags.FLAGS
+flags.DEFINE_string ('model_name',     "VGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT)')
+flags.DEFINE_string ('test_version',   "test001",  'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_boolean('infill',         True,       'Whether to infill or not')
 
 ###########################
 # Build the dataset and dataloader
@@ -44,6 +48,10 @@ class VisionTactileDataset(Dataset):
         else:              self.prediction_horizon = prediction_horizon
 
         self.map_data = np.load(self.map_file, allow_pickle=True)
+
+        if config.debug:
+            self.map_data = self.map_data[:10]
+
         self.build_dataset()
 
     def __len__(self):
@@ -148,8 +156,38 @@ class VisionTactileDataset(Dataset):
                 joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
                 joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
 
+def main(argv):
+    ###########################
+    # Setup configs
+    ###########################
+    flags.mark_flag_as_required('model_name')
+    flags.mark_flag_as_required('test_version')
+    
+    from config.config_base_model import Config, model_config_builder
+    config = Config()
 
-def main(_):
+    if "AC-VTGPT" in FLAGS.model_name:
+        print("setting model to AC-VTGPT version")
+        config.model_name      = "AC-VTGPT"
+        config.action, config.tactile = True, True
+
+    elif "AC-VGPT" in FLAGS.model_name:
+        print("setting model to AC-VGPT version")
+        config.model_name      = "AC-VGPT"
+        config.action, config.tactile = True, False
+
+    elif "VGPT" in FLAGS.model_name:
+        print("setting model to VGPT version")
+        config.model_name      = "VGPT"
+        config.action, config.tactile = False, False
+
+    config.infill_patches  = FLAGS.infill
+    if config.infill_patches: config.model_name += "-infill"
+
+    config.test_version    = FLAGS.test_version
+    config.experiment_name = FLAGS.test_version + " - " + config.model_name
+    config.model_config = model_config_builder(config)
+
     ###########################
     # Setup WandB
     ###########################

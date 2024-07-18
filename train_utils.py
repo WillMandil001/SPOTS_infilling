@@ -24,7 +24,9 @@ from typing import Callable
 
 import torch.nn as nn
 import matplotlib.pyplot as plt
+
 from flax.traverse_util import flatten_dict
+from matplotlib.gridspec import GridSpec
 
 
 ###########################
@@ -34,33 +36,43 @@ from flax.traverse_util import flatten_dict
 ###########################
 
 def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step, step_name):
-    if config.infill_patches:
-        fig, axes = plt.subplots(3, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
+    if config.prediction_horizon > 20:
+        sample_rate = config.prediction_horizon // 20
     else:
-        fig, axes = plt.subplots(2, config.prediction_horizon, figsize=(config.prediction_horizon * 3, 6))
+        sample_rate = 1
 
-    if config.prediction_horizon > 20: sample_rate = config.prediction_horizon // 20
-    else: sample_rate = 1
+    if config.infill_patches:
+        fig = plt.figure(figsize=(config.prediction_horizon * 0.25, 5))
+        gs = GridSpec(3, 20, figure=fig)
+    else:
+        fig = plt.figure(figsize=(config.prediction_horizon * 0.25, 5))
+        gs = GridSpec(2, 20, figure=fig)
 
-    for j in range(sample_rate-1, config.prediction_horizon, sample_rate):
-        ax = axes[0, j]
+    index = 0
+    for j in range(sample_rate - 1, config.prediction_horizon, sample_rate):
+        if config.infill_patches: ax = fig.add_subplot(gs[1, index])
+        else:                     ax = fig.add_subplot(gs[0, index])
         ax.imshow(ground_truth[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
         ax.axis('off')
-        ax.set_title(f"GT {j+1}")
-        if config.infill_patches: ax = axes[2, j]
-        else:                     ax = axes[1, j]
+        ax.set_title(f"GT {j + 1}")
+        if config.infill_patches: ax = fig.add_subplot(gs[2, index])
+        else:                     ax = fig.add_subplot(gs[1, index])
         ax.imshow(predicted_frames[j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
         ax.axis('off')
-        ax.set_title(f"Pred {j+1}")
+        ax.set_title(f"Pred {j + 1}")
+        index += 1
 
     if config.infill_patches:
         for j in range(input_frames.shape[1]):
-            ax = axes[1, j]
+            ax = fig.add_subplot(gs[0, j])
             ax.imshow(input_frames[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
             ax.axis('off')
-            ax.set_title(f"Input {j+1}")
+            ax.set_title(f"Input {j + 1}")
 
     plt.tight_layout()
+    plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
+    plt.savefig("temp.png")
+
     wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 
@@ -317,3 +329,11 @@ class Timer:
 def tree_map(fn: Callable, tree: dict) -> dict:
     """Maps a function over a nested dictionary."""
     return {k: tree_map(fn, v) if isinstance(v, dict) else fn(v) for k, v in tree.items()}
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False

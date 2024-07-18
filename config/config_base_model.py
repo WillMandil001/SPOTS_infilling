@@ -32,7 +32,8 @@ class model_config_builder():
         self.tactile = config.tactile
         self.image = config.image
         self.tactile_conditioned = config.tactile_conditioned
-        self.pretrained_acvp_model_path = config.pretrained_acvp_model_path
+        self.pretrained_model_path           = config.pretrained_model_path
+        self.pretrained_config_path          = config.pretrained_config_path
         self.load_pretrained_image_model     = config.load_pretrained_image_model
         self.freeze_image_model              = config.freeze_image_model
         self.load_pretrained_ac_image_model  = config.load_pretrained_ac_image_model
@@ -49,8 +50,9 @@ class Config:
         # General parameters
         ###########################
         self.debug             = True
-        self.cluster           = True
+        self.cluster           = False
         self.pre_load_data     = True
+        self.preload_data_gpu  = False
 
         if self.cluster == False:
             self.dataset_name      = "robot_grasping_dataset"
@@ -70,13 +72,58 @@ class Config:
             self.replace_with      = "/shared/home/wmandil/datasets/robot_pushing/"
 
         self.model_name      = "AC-VTGPT-infill"  # VPGPT, AC-VGPT, AC-VTGPT
-        self.test_version    = "v1"
-        self.experiment_name = self.model_name + " - " + self.test_version
+        self.test_version    = "v3"
+        self.experiment_name = self.test_version + " - " + self.model_name
         self.date_and_time   = datetime.datetime.now().strftime("%m%d_%H%M%S")
 
-        self.wandb             = dict(project="SPOTS_pushing_home_pc")
+        self.wandb             = dict(project="SPOTS-cluster")
         self.wandb_resume      = False
         self.wandb_resume_id   = ""
+
+        ###########################
+        # Transformer parameters
+        ###########################
+        self.dtype 		            = 'float16'
+        self.image 					= True
+        self.action 			    = True
+        self.tactile 				= True
+        self.mask 			   		= True
+        self.padding 				= False
+        self.tactile_conditioned 	= False
+
+        self.image_height             = 64
+        self.image_width              = 64
+
+        self.patch_size               = 16
+        self.transformer_input_height = 16
+        self.transformer_input_width  = 16
+
+        self.input_dim   	   = 3
+        self.action_dim 	   = 6
+        self.tactile_dim 	   = 48
+
+        self.enc_dim 	  	    = 768
+        self.num_heads 	  	    = 12
+        self.num_encoder_layers = 2
+        self.dropout 		    = 0.2
+        self.bias               = True   # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
+
+        ###########################
+        # Pre-loading parameters (whether to aspects of the model from a pretrained model)
+        ###########################
+        self.pretrained_model_path      = "/home/wmandil/robotics/saved_models/VGPT-infill/v4 - VGPT-infill_20240717_082440/model_final.pth"
+        self.pretrained_config_path     = "/home/wmandil/robotics/SPOTS_infilling/wandb/run-20240717_082440-v4 - VGPT-infill_20240717_082440/files/config.yaml"
+        self.load_pretrained_image_model     = False  # set to None or a path to the saved models .zip
+        self.freeze_image_model              = False
+
+        self.load_pretrained_ac_image_model  = False  # set to None or a path to the saved models .zip
+        self.freeze_ac_image_model           = False
+
+        self.load_pretrained_image_tokenizer = True  # set to None or a path to the saved models .zip
+        self.freeze_image_tokenizer          = True
+
+        self.load_pretrained_image_decoder   = False  # set to None or a path to the saved models .zip
+        self.freeze_image_decoder            = False
 
         ###########################
         # Training parameters
@@ -85,7 +132,7 @@ class Config:
         self.batch_size = 256
 
         self.num_steps       = 25_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
-        self.save_interval   = 1_000
+        self.save_interval   = 10_000
         self.log_interval    = 100
         if self.debug: self.eval_interval   = 10
         else:          self.eval_interval   = 500 # 500      
@@ -99,8 +146,6 @@ class Config:
         self.num_workers = 4
         self.device = "cuda"
 
-        self.load_full_dataset_to_gpu = True
-
         self.scale_data            = True
 
         self.blind_image_data      = False
@@ -111,21 +156,6 @@ class Config:
 
         self.viz_steps = [1, 200, 800, 1050, 1350]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
         
-        ###########################
-        # Pre-loading parameters (whether to aspects of the model from a pretrained model)
-        ###########################
-        self.load_pretrained_image_model     = None  # set to None or a path to the saved models .zip
-        self.freeze_image_model              = False
-
-        self.load_pretrained_ac_image_model  = None  # set to None or a path to the saved models .zip
-        self.freeze_ac_image_model           = False
-
-        self.load_pretrained_image_tokenizer = None  # set to None or a path to the saved models .zip
-        self.freeze_image_tokenizer          = True
-
-        self.load_pretrained_image_decoder   = None  # set to None or a path to the saved models .zip
-        self.freeze_image_decoder            = False
-
         ###########################
         # Infilling parameters
         ###########################
@@ -146,38 +176,12 @@ class Config:
         self.beta2 	       = 0.99 
         self.weight_decay  = 1e-4 
         self.learning_rate = 0.001
-
-        ###########################
-        # Transformer parameters
-        ###########################
-        self.image_height             = 64
-        self.image_width              = 64
-
-        self.patch_size               = 16
-        self.transformer_input_height = 16
-        self.transformer_input_width  = 16
-
-        self.input_dim   	   = 3
-        self.action_dim 	   = 6
-        self.tactile_dim 	   = 48
-
-        self.enc_dim 	  	    = 768
-        self.num_heads 	  	    = 12
-        self.num_encoder_layers = 2
-        self.dropout 		    = 0.2
-        self.bias               = True   # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
-
-        self.dtype 		            = 'float16' 
-        self.image 					= True 
-        self.action 			    = True 
-        self.tactile 				= True 
-        self.mask 			   		= True 
-        self.padding 				= False 
-        self.tactile_conditioned 	= False 
-        self.pretrained_acvp_model_path = ""
-
-        self.model_config = model_config_builder(self)
     
+        ###########################
+        # build sub-configs
+        ###########################
+        self.model_config = model_config_builder(self)
+
     def to_dict(self):
         ''' returns a dictionary of all the self variables and nest the model_config as well
             the function must be repeatable '''

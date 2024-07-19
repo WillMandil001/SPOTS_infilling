@@ -312,14 +312,17 @@ class VPGPT(nn.Module):
 				torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
 		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:
+			print("!!! LOADING THE pretrained image encoder !!!")
 			self.transformer.prior_model.load_state_dict(torch.load(self.config.pretrained_model_path))
 
-		if self.config.load_pretrained_image_tokenizer:  
+		if self.config.load_pretrained_image_tokenizer:
+			print("!!! LOADING THE pretrained image tokenizer !!!")
 			pretrained_state_dict = torch.load(self.config.pretrained_model_path)
 			patch_and_embed_state_dict = {k.replace('transformer.patch_and_embed.', ''): v for k, v in pretrained_state_dict.items() if 'transformer.patch_and_embed.' in k}
 			self.transformer.patch_and_embed.load_state_dict(patch_and_embed_state_dict)
 
 		if self.config.load_pretrained_image_decoder:    
+			print("!!! LOADING THE pretrained image decoder   !!!")
 			pretrained_state_dict = torch.load(self.config.pretrained_model_path)
 			decode_and_depatch_state_dict = {k.replace('transformer.decode_and_depatch.', ''): v for k, v in pretrained_state_dict.items() if 'transformer.decode_and_depatch.' in k}
 			self.transformer.decode_and_depatch.load_state_dict(decode_and_depatch_state_dict)
@@ -411,6 +414,14 @@ class VPGPT(nn.Module):
 	def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
 		if self.config.freeze_image_model or self.config.freeze_ac_image_model:
 			for param in self.transformer.prior_model.parameters():
+				param.requires_grad = False
+
+		if self.config.freeze_image_tokenizer:
+			for param in self.transformer.patch_and_embed.parameters():
+				param.requires_grad = False
+
+		if self.config.freeze_image_decoder:  # not sure if you can actually freeze the decoder, its not really a thing maybe?
+			for param in self.transformer.decode_and_depatch.parameters():
 				param.requires_grad = False
 	
 		param_dict = {pn: p for pn, p in self.named_parameters()}                 # start with all of the candidate parameters

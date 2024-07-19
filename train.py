@@ -1,15 +1,14 @@
 import os
 import wandb
 import torch
-import click
 import joblib
-import argparse
 import datetime
 import numpy as np
 import torch.nn as nn
 
 # training utilities
 import train_utils
+from config.config_base_model import Config, model_config_builder
 
 # models
 from model import VPGPT
@@ -22,16 +21,31 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 # data logging and visualization
 from absl import app, logging, flags
 
-# TODO:
-# [ ] Add the dataset to the GPU straight away instead of moving it in the training loop
-
 ###########################
 # Set up the Flags for the training
 ###########################
 FLAGS = flags.FLAGS
-flags.DEFINE_string ('model_name',     "VGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT)')
-flags.DEFINE_string ('test_version',   "test001",  'just a filler name for logging - set to vXX or testXXX')
-flags.DEFINE_boolean('infill',         True,       'Whether to infill or not')
+
+# experiment / run flags
+flags.DEFINE_string ('model_name',               "VGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT)')
+flags.DEFINE_string ('test_version',             "test001",  'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_boolean('infill',                   False,       'Whether to infill or not')
+
+# training flags
+flags.DEFINE_integer('num_steps',                0,        'set to 0 to use the configs num_steps') 
+
+# Pre-training flags
+flags.DEFINE_boolean('pretrained',               False,       '')
+flags.DEFINE_boolean('pretrained_enc',           False,       '')
+flags.DEFINE_boolean('pretrained_enc_frozen',    False,       '')
+flags.DEFINE_boolean('pretrained_ac_enc',        False,       '')
+flags.DEFINE_boolean('pretrained_ac_enc_frozen', False,       '')
+flags.DEFINE_boolean('pretrained_tok',           False,       '')
+flags.DEFINE_boolean('pretrained_tok_frozen',    False,       '')
+flags.DEFINE_boolean('pretrained_dec',           False,       '')
+flags.DEFINE_boolean('pretrained_dec_frozen',    False,       '')
+flags.DEFINE_string ('pretrained_model_path',   "/home/wmandil/robotics/saved_models/VGPT-infill/v4 - VGPT-infill_20240717_082440/model_final.pth",  '')
+flags.DEFINE_string ('pretrained_config_path',  "/home/wmandil/robotics/SPOTS_infilling/wandb/run-20240717_082440-v4 - VGPT-infill_20240717_082440/files/config.yaml",  '')
 
 ###########################
 # Build the dataset and dataloader
@@ -160,10 +174,6 @@ def main(argv):
     ###########################
     # Setup configs
     ###########################
-    flags.mark_flag_as_required('model_name')
-    flags.mark_flag_as_required('test_version')
-    
-    from config.config_base_model import Config, model_config_builder
     config = Config()
 
     if "AC-VTGPT" in FLAGS.model_name:
@@ -181,8 +191,16 @@ def main(argv):
         config.model_name      = "VGPT"
         config.action, config.tactile = False, False
 
+    if FLAGS.pretrained:         config.pretrained_model_path, config.pretrained_config_path                         = FLAGS.pretrained_model_path, FLAGS.pretrained_config_path
+    if FLAGS.pretrained_enc:     config.load_pretrained_image_model, config.freeze_image_model                       = FLAGS.pretrained_enc, FLAGS.pretrained_enc_frozen
+    if FLAGS.pretrained_ac_enc:  config.load_pretrained_ac_image_model, config.freeze_ac_image_model, config.action  = FLAGS.pretrained_ac_enc, FLAGS.pretrained_ac_enc_frozen, True
+    if FLAGS.pretrained_tok:     config.load_pretrained_image_tokenizer, config.freeze_image_tokenizer               = FLAGS.pretrained_tok, FLAGS.pretrained_tok_frozen
+    if FLAGS.pretrained_dec:     config.load_pretrained_image_decoder, config.freeze_image_decoder                   = FLAGS.pretrained_dec, FLAGS.pretrained_dec_frozen
+
+    if config.num_steps != 0:   config.num_steps = FLAGS.num_steps
+
     config.infill_patches  = FLAGS.infill
-    if config.infill_patches: config.model_name += "-infill"
+    if config.infill_patches: config.model_name += " -infill"
 
     config.test_version    = FLAGS.test_version
     config.experiment_name = FLAGS.test_version + " - " + config.model_name

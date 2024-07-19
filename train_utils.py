@@ -96,6 +96,9 @@ def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, s
         ax.set_ylim(0, 1)
         ax.set_xticks(range(0, config.prediction_horizon, 2))
         ax.set_title(f"Feature {i}")
+        # set x ticks every 10 points
+        ax.set_xticks(range(0, config.prediction_horizon, 5))
+
     fig.legend(["x gt", "x pred", "y gt", "y pred", "z gt", "z pred"], loc='lower center', ncol=3)
     plt.tight_layout()
     wandb.log({"viz_tactile_{}".format(step_name): wandb.Image(fig)}, step=step)

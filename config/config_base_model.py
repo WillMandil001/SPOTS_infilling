@@ -49,7 +49,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = True
+        self.debug             = False
         self.cluster           = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False
@@ -111,18 +111,18 @@ class Config:
         ###########################
         # Pre-loading parameters (whether to aspects of the model from a pretrained model)
         ###########################
-        self.pretrained_model_path      = "/home/wmandil/robotics/saved_models/VGPT-infill/v4 - VGPT-infill_20240717_082440/model_final.pth"
-        self.pretrained_config_path     = "/home/wmandil/robotics/SPOTS_infilling/wandb/run-20240717_082440-v4 - VGPT-infill_20240717_082440/files/config.yaml"
-        self.load_pretrained_image_model     = False  # set to None or a path to the saved models .zip
+        self.pretrained_model_path      = ""
+        self.pretrained_config_path     = ""
+        self.load_pretrained_image_model     = False
         self.freeze_image_model              = False
 
-        self.load_pretrained_ac_image_model  = False  # set to None or a path to the saved models .zip
+        self.load_pretrained_ac_image_model  = False
         self.freeze_ac_image_model           = False
 
-        self.load_pretrained_image_tokenizer = True  # set to None or a path to the saved models .zip
-        self.freeze_image_tokenizer          = True
+        self.load_pretrained_image_tokenizer = False
+        self.freeze_image_tokenizer          = False
 
-        self.load_pretrained_image_decoder   = False  # set to None or a path to the saved models .zip
+        self.load_pretrained_image_decoder   = False
         self.freeze_image_decoder            = False
 
         ###########################

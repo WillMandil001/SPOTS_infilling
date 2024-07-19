@@ -30,6 +30,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string ('model_name',               "VGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT)')
 flags.DEFINE_string ('test_version',             "test001",  'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('infill',                   False,       'Whether to infill or not')
+flags.DEFINE_boolean('cluster',                  False,       'Whether or not to run on the cluster')
 
 # training flags
 flags.DEFINE_integer('num_steps',                0,        'set to 0 to use the configs num_steps') 
@@ -198,6 +199,7 @@ def main(argv):
     if FLAGS.pretrained_dec:     config.load_pretrained_image_decoder, config.freeze_image_decoder                   = FLAGS.pretrained_dec, FLAGS.pretrained_dec_frozen
 
     if config.num_steps != 0:   config.num_steps = FLAGS.num_steps
+    if FLAGS.cluster:           config.cluster = True
 
     config.infill_patches  = FLAGS.infill
     if config.infill_patches: config.model_name += " -infill"

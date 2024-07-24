@@ -8,10 +8,13 @@ import torch.nn as nn
 
 # training utilities
 import train_utils
-from config.config_base_model import Config, model_config_builder
+from config.config_base_model import Config, model_config_builder_transformer, model_config_builder_actp, model_config_builder_svg
 
 # models
-from model import VPGPT
+from model_set.transformer import VPGPT
+from model_set.SPOTS_SVG_ACTP_SOP import Model as SPOTS_SVG_ACTP_SOP
+from model_set.SPOTS_SVG_ACTP import Model as SPOTS_SVG_ACTP
+from model_set.SVG import Model as SVG
 
 # data loading and processing
 from tqdm import tqdm
@@ -27,10 +30,11 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-flags.DEFINE_string ('model_name',               "VGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT)')
-flags.DEFINE_string ('test_version',             "test001",  'just a filler name for logging - set to vXX or testXXX')
-flags.DEFINE_boolean('infill',                   False,       'Whether to infill or not')
-flags.DEFINE_boolean('cluster',                  False,       'Whether or not to run on the cluster')
+flags.DEFINE_string ('model_name',               "SVG-ACTP-SOP",         'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_type',               "SVG",          'Set the type of model you are going to use (transformer, SVG, ACTP)')
+flags.DEFINE_string ('test_version',             "LSTM-test",      'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_boolean('infill',                   False,          'Whether to infill or not')
+flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags
 flags.DEFINE_integer('num_steps',                0,        'set to 0 to use the configs num_steps') 
@@ -191,6 +195,16 @@ def main(argv):
         print("setting model to VGPT version")
         config.model_name      = "VGPT"
         config.action, config.tactile = False, False
+    
+    elif "SVG-ACTP" in FLAGS.model_name:
+        print("setting model to SPOTS_SVG_ACTP version")
+        config.model_name      = "SVG-ACTP"
+        config.action, config.tactile = True, True
+
+    elif "SVG" in FLAGS.model_name:
+        print("setting model to SVG version")
+        config.model_name      = "SVG"
+        config.action, config.tactile = True, False
 
     if FLAGS.pretrained:         config.pretrained_model_path, config.pretrained_config_path                         = FLAGS.pretrained_model_path, FLAGS.pretrained_config_path
     if FLAGS.pretrained_enc:     config.load_pretrained_image_model, config.freeze_image_model                       = FLAGS.pretrained_enc, FLAGS.pretrained_enc_frozen
@@ -198,15 +212,18 @@ def main(argv):
     if FLAGS.pretrained_tok:     config.load_pretrained_image_tokenizer, config.freeze_image_tokenizer               = FLAGS.pretrained_tok, FLAGS.pretrained_tok_frozen
     if FLAGS.pretrained_dec:     config.load_pretrained_image_decoder, config.freeze_image_decoder                   = FLAGS.pretrained_dec, FLAGS.pretrained_dec_frozen
 
-    if config.num_steps != 0:   config.num_steps = FLAGS.num_steps
-    if FLAGS.cluster:           config.cluster = True
+    if FLAGS.num_steps  != 0:   config.num_steps = FLAGS.num_steps
+    if FLAGS.model_type != '':  config.model_type = FLAGS.model_type
+    if FLAGS.cluster:          config.cluster = True
 
     config.infill_patches  = FLAGS.infill
     if config.infill_patches: config.model_name += " -infill"
 
     config.test_version    = FLAGS.test_version
     config.experiment_name = FLAGS.test_version + " - " + config.model_name
-    config.model_config = model_config_builder(config)
+    if FLAGS.model_type == "transformer":   config.model_config = model_config_builder_transformer(config)
+    elif FLAGS.model_type == "SVG":         config.model_config = model_config_builder_svg(config)
+    elif FLAGS.model_type == "ACTP":        config.model_config = model_config_builder_actp(config)
 
     ###########################
     # Setup WandB
@@ -236,10 +253,18 @@ def main(argv):
     ###########################
     # Load the model and optimizer
     ###########################
-    model = VPGPT(config.model_config).to(config.device)
-    scaler = torch.cuda.amp.GradScaler(enabled=(config.dtype == 'float16'))
-    optimizer = model.configure_optimizers(config.weight_decay, config.learning_rate, (config.beta1, config.beta2), config.device)
+    if FLAGS.model_type == "transformer":
+        model = VPGPT(config.model_config).to(config.device)
+        scaler = torch.cuda.amp.GradScaler(enabled=(config.dtype == 'float16'))
+        optimizer = model.configure_optimizers(config.weight_decay, config.learning_rate, (config.beta1, config.beta2), config.device)
+        plot = model.get_attention_mask()  # returns a matplotlib plot of the attention mask
 
+    if FLAGS.model_type == "SVG":
+        if config.model_name == "SVG":             model = SVG(config.model_config).to(config.device)
+        elif config.model_name == "SVG-ACTP":      model = SPOTS_SVG_ACTP(config.model_config).to(config.device)
+        elif config.model_name == "SVG-ACTP-SOP":  model = SPOTS_SVG_ACTP_SOP(config.model_config).to(config.device)
+        model.initialise_model()
+        
     if   config.criterion == "MAE":  criterion = nn.L1Loss()
     elif config.criterion == "MSE":  criterion = nn.MSELoss()
 
@@ -258,13 +283,12 @@ def main(argv):
     wandb.config.update(dict(train_dataset_size=len(train_dataset), val_dataset_size=len(val_dataset), viz_dataset_size=len(viz_dataset)), allow_val_change=True)
 
     # save the model attention mask
-    plot = model.get_attention_mask()  # returns a matplotlib plot of the attention mask
-    wandb.log({"attention_mask": wandb.Image(plot)}, step=0)
+    if FLAGS.model_type == "transformer": wandb.log({"attention_mask": wandb.Image(plot)}, step=0)
 
     ###########################
     # Define the training functions
     ###########################
-    def train_step(batch, config, scaler, model, optimizer, criterion, timer):
+    def train_step_transformer(batch, config, model, criterion, timer):
         pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
         scaler.scale(total_loss).backward()
         scaler.step(optimizer)
@@ -273,9 +297,17 @@ def main(argv):
         update_info = {"grad_norm": torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0),
                        "lr": optimizer.param_groups[0]["lr"],
                        "loss": total_loss.item()}
-        if config.image:    update_info["Training: image loss"] = loss.item()
+        if config.image:    update_info["Training: image loss"]   = loss.item()
         if config.tactile:  update_info["Training: tactile loss"] = tactile_loss.item()    
+        return update_info
 
+    def train_step_svg(batch, config, model, criterion, timer):
+        pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
+        update_info = {"grad_norm": torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0),
+                       "lr": model.prior_optimizer.param_groups[0]['lr'],
+                       "loss": total_loss.item()}
+        if config.image:    update_info["Training: image kld loss"] = loss.item()
+        if config.tactile:  update_info["Training: tactile loss"]   = tactile_loss.item()    
         return update_info
 
     def val_step(step, config, model, criterion, val_dataloader, timer):
@@ -283,7 +315,7 @@ def main(argv):
         with torch.no_grad():
             model.eval()
             for i, batch in enumerate(val_dataloader):
-                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False, repeatable_infill=True)
+                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False, repeatable_infill=True, eval=True)
                 val_metrics["validation_loss"] = val_metrics.get("loss", 0) + total_loss.item()
                 if config.tactile:  val_metrics["Validation: tactile loss"] = val_metrics.get("tactile_loss", 0) + tactile_loss.item()
                 if config.image:    val_metrics["Validation: image loss"] = val_metrics.get("image_loss", 0) + loss.item()
@@ -306,18 +338,23 @@ def main(argv):
                     train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
                     image_loss_list.append(image_losses.item())
                     loss_sequences_image.append(loss_sequence_image)
+                    combined_losses.append(combined_total_loss.item())
+                    loss_sequences_combined.append(loss_sequence_combined)
                 if config.tactile:
                     train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, config, step, step_name=i)
                     tactile_loss_list.append(tactile_losses.item())
                     loss_sequences_tactile.append(loss_sequence_tactile)
-                if config.image and config.tactile:
-                    combined_losses.append(combined_total_loss.item())
-                    loss_sequences_combined.append(loss_sequence_combined)
 
         viz_metrics = {}
-        if config.image and config.tactile:  viz_metrics["Test: Rollout combined loss {}".format(config.prediction_horizon)] = np.mean(combined_losses)
-        if config.image:                     viz_metrics["Test: Rollout image loss {}".format(config.prediction_horizon)]    = np.mean(image_loss_list)
-        if config.tactile:                   viz_metrics["Test: Rollout tactile loss {}".format(config.prediction_horizon)]  = np.mean(tactile_loss_list)
+        if config.model_type == "transformer":
+            if config.image and config.tactile:  viz_metrics["Test: Rollout combined loss {}".format(config.prediction_horizon)] = np.mean(combined_losses)
+            if config.image:                     viz_metrics["Test: Rollout image loss {}".format(config.prediction_horizon)]    = np.mean(image_loss_list)
+            if config.tactile:                   viz_metrics["Test: Rollout tactile loss {}".format(config.prediction_horizon)]  = np.mean(tactile_loss_list)
+        elif config.model_type == "SVG":
+            if config.image and config.tactile:  viz_metrics["Test: Rollout combined loss {}".format(config.prediction_horizon)]     = np.mean(combined_losses) + np.mean(tactile_loss_list)
+            if config.image:                     viz_metrics["Test: Rollout image loss {}".format(config.prediction_horizon)]        = np.mean(combined_losses)
+            if config.image:                     viz_metrics["Test: Rollout image prior loss {}".format(config.prediction_horizon)]  = np.mean(image_loss_list)
+            if config.tactile:                   viz_metrics["Test: Rollout tactile loss {}".format(config.prediction_horizon)]      = np.mean(tactile_loss_list)
 
         train_utils.viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, config, step)
         return viz_metrics
@@ -326,6 +363,11 @@ def main(argv):
     # training loop
     ###########################
     logging.info(f" --- starting training loop")
+
+    if FLAGS.model_type == "transformer": train_step = train_step_transformer
+    if FLAGS.model_type == "SVG":
+        train_step = train_step_svg
+        model.criterion = criterion
 
     model.train()
     timer = train_utils.Timer()
@@ -336,7 +378,8 @@ def main(argv):
         while step < config.num_steps:
             for batch in train_dataloader:
                 timer.tock("batch_gen")
-                with timer("format and train"):   update_info = train_step(batch, config, scaler, model, optimizer, criterion, timer)
+
+                with timer("format and train"):   update_info = train_step(batch, config, model, criterion, timer)
                 timer.tock("total")
 
                 if (step + 1) % config.log_interval == 0:

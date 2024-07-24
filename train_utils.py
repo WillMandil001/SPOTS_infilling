@@ -36,6 +36,8 @@ from matplotlib.gridspec import GridSpec
 ###########################
 
 def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step, step_name):
+    if len(predicted_frames.shape) == 5: predicted_frames = predicted_frames.squeeze()
+
     if config.prediction_horizon > 20:
         sample_rate = config.prediction_horizon // 20
     else:
@@ -71,13 +73,14 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
 
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
-    plt.savefig("temp.png")
-
     wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 
 def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, step, step_name):        # we want to plot each of the 16 features in a 4x4 grid over the ts frames:
     fig, axes = plt.subplots(4, 4, figsize=(12, 12))
+
+    if len(predicted_frames_tactile.shape) > 2: predicted_frames_tactile = predicted_frames_tactile.squeeze()
+
     x_pred = predicted_frames_tactile[:, :16].cpu().numpy()
     x_gt = ground_truth_tactile[0][:, :16].cpu().numpy()
     y_pred = predicted_frames_tactile[:, 16:32].cpu().numpy()
@@ -106,21 +109,44 @@ def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, s
 
 def viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, config, step):
     fig, ax = plt.subplots(1, 1, figsize=(8, 5))
-    if config.image and config.tactile:
-        loss_sequences_combined = np.array(loss_sequences_combined)
-        mean_loss = np.mean(loss_sequences_combined, axis=0)
-        std_loss = np.std(loss_sequences_combined, axis=0)
-        ax.plot(mean_loss, label="combined loss", color="red")
-    if config.image:
-        loss_sequences_image = np.array(loss_sequences_image)
-        mean_loss = np.mean(loss_sequences_image, axis=0)
-        std_loss = np.std(loss_sequences_image, axis=0)
-        ax.plot(mean_loss, label="image loss", color="green")
-    if config.tactile:
-        loss_sequences_tactile = np.array(loss_sequences_tactile)
-        mean_loss = np.mean(loss_sequences_tactile, axis=0)
-        std_loss = np.std(loss_sequences_tactile, axis=0)
-        ax.plot(mean_loss, label="tactile loss", color="blue")        
+
+    if config.model_type == "transformer":
+        if config.image and config.tactile:
+            loss_sequences_combined = np.array(loss_sequences_combined)
+            mean_loss = np.mean(loss_sequences_combined, axis=0)
+            std_loss = np.std(loss_sequences_combined, axis=0)
+            ax.plot(mean_loss, label="combined loss", color="red")
+        if config.image:
+            loss_sequences_image = np.array(loss_sequences_image)
+            mean_loss = np.mean(loss_sequences_image, axis=0)
+            std_loss = np.std(loss_sequences_image, axis=0)
+            ax.plot(mean_loss, label="image loss", color="green")
+        if config.tactile:
+            loss_sequences_tactile = np.array(loss_sequences_tactile)
+            mean_loss = np.mean(loss_sequences_tactile, axis=0)
+            std_loss = np.std(loss_sequences_tactile, axis=0)
+            ax.plot(mean_loss, label="tactile loss", color="blue")        
+    elif config.model_type == "SVG":
+        if config.image and config.tactile:
+            # the actual combined loss in the SVG model is the sum of the combined and tactile losses
+            loss_sequences_combined = np.array(loss_sequences_combined) + torch.tensor(loss_sequences_tactile).cpu().numpy()
+            mean_loss = np.mean(loss_sequences_combined, axis=0)
+            std_loss = np.std(loss_sequences_combined, axis=0)
+            ax.plot(mean_loss, label="combined loss", color="red")
+        if config.image:
+            loss_sequences_combined = np.array(loss_sequences_combined)
+            mean_loss = np.mean(loss_sequences_combined, axis=0)
+            std_loss = np.std(loss_sequences_combined, axis=0)
+            ax.plot(mean_loss, label="image loss", color="green")
+            loss_sequences_image = np.array(loss_sequences_image)
+            mean_loss = np.mean(loss_sequences_image, axis=0)
+            std_loss = np.std(loss_sequences_image, axis=0)
+            ax.plot(mean_loss, label="image prior loss", color="purple")
+        if config.tactile:
+            loss_sequences_tactile = torch.tensor(loss_sequences_tactile).cpu().numpy()
+            mean_loss = np.mean(loss_sequences_tactile, axis=0)
+            std_loss = np.std(loss_sequences_tactile, axis=0)
+            ax.plot(mean_loss, label="tactile loss", color="blue")        
 
     ax.fill_between(range(config.prediction_horizon), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2)
     ax.set_title("Rollout Loss")
@@ -152,7 +178,7 @@ def viz_tactile_histogram(tactile_data):
 # Training and Validation functions
 #
 ###########################
-def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout, repeatable_infill=False):
+def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout, repeatable_infill=False, eval=False):
     image_context, image_predict, tactile_context, tactile_predict, robot_data = None, None, None, None, None
     if horizon_rollout:
         if config.image:
@@ -199,7 +225,7 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
         loss_sequence_image, loss_sequence_tactile, loss_sequence_combined) = rollout_sequence(image_context, image_predict, robot_data, tactile_context, tactile_predict, config, model, criterion) # TODO: add tactile data
         return rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context
     else:
-        with timer("train"): pred_image, pred_tactile, total_loss, loss, tactile_loss = model(image_context, targets=image_predict, actions=robot_data, tactiles=tactile_context, tactile_targets=tactile_predict)        # forward pass
+        with timer("train"): pred_image, pred_tactile, total_loss, loss, tactile_loss = model(image_context, targets=image_predict, actions=robot_data, tactiles=tactile_context, tactile_targets=tactile_predict, test=eval)        # forward pass
         return pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context
 
 
@@ -210,6 +236,7 @@ def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_conte
     rollout_image_prediction, rollout_tactile_prediction = None, None
     image_losses, tactile_losses, combined_total_loss = None, None, None
     robot_data_sequence = None
+    full_tactile_sequence = None
 
     loss_sequence_combined = []
     loss_sequence_image = []
@@ -218,39 +245,43 @@ def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_conte
     if config.image:   full_image_sequence = torch.cat([image_context, image_groundtruth], dim=1)
     if config.tactile: full_tactile_sequence = torch.cat([tactile_context, tactile_groundtruth], dim=1)
 
-    for j in range(config.prediction_horizon):
-        if config.image:    image_predict = full_image_sequence[:, j+1:j + config.context_length + 1, ...]
-        if config.action:   robot_data_sequence = robot_data[:, j:j + config.context_length + 1, ...]
-        if config.tactile:  tactile_predict = full_tactile_sequence[:, j+1:j + config.context_length + 1, ...]
+    if config.model_type == "transformer":
+        for j in range(config.prediction_horizon):
+            if config.image:    image_predict = full_image_sequence[:, j+1:j + config.context_length + 1, ...]
+            if config.action:   robot_data_sequence = robot_data[:, j:j + config.context_length + 1, ...]
+            if config.tactile:  tactile_predict = full_tactile_sequence[:, j+1:j + config.context_length + 1, ...]
 
-        pred_image, pred_tactile, total_loss, loss, tactile_loss = model(image_context, targets=image_predict, actions=robot_data_sequence, tactiles=tactile_context, tactile_targets=tactile_predict)
+            pred_image, pred_tactile, total_loss, loss, tactile_loss = model(image_context, targets=image_predict, actions=robot_data_sequence, tactiles=tactile_context, tactile_targets=tactile_predict)
+
+            if config.image:
+                image_context = torch.cat([image_context[:, 1:], pred_image[:, -1:, ]], dim=1)
+                predicted_image_sequence.append(pred_image[0, -1, ...])
+                image_loss_timestep_x   = criterion(image_predict[0][-1], pred_image[0][-1])
+                loss_sequence_image.append(image_loss_timestep_x.item())
+            if config.tactile:
+                tactile_context = torch.cat([tactile_context[:, 1:], pred_tactile[:, -1:, ]], dim=1)
+                predicted_tactile_sequence.append(pred_tactile[0, -1, ...])
+                tactile_loss_timestep_x = criterion(tactile_predict[0][-1], pred_tactile[0][-1])
+                loss_sequence_tactile.append(tactile_loss_timestep_x.item())
+
+            if config.image and config.tactile:
+                loss_sequence_combined.append(image_loss_timestep_x.item() + tactile_loss_timestep_x.item())
 
         if config.image:
-            image_context = torch.cat([image_context[:, 1:], pred_image[:, -1:, ]], dim=1)
-            predicted_image_sequence.append(pred_image[0, -1, ...])
-            image_loss_timestep_x   = criterion(image_predict[0][-1], pred_image[0][-1])
-            loss_sequence_image.append(image_loss_timestep_x.item())
+            rollout_image_prediction = torch.stack(predicted_image_sequence, dim=0)
+            image_losses = criterion(image_groundtruth[0], rollout_image_prediction)
         if config.tactile:
-            tactile_context = torch.cat([tactile_context[:, 1:], pred_tactile[:, -1:, ]], dim=1)
-            predicted_tactile_sequence.append(pred_tactile[0, -1, ...])
-            tactile_loss_timestep_x = criterion(tactile_predict[0][-1], pred_tactile[0][-1])
-            loss_sequence_tactile.append(tactile_loss_timestep_x.item())
-
+            rollout_tactile_prediction = torch.stack(predicted_tactile_sequence, dim=0)
+            tactile_losses = criterion(tactile_groundtruth[0], rollout_tactile_prediction)
         if config.image and config.tactile:
-            loss_sequence_combined.append(image_loss_timestep_x.item() + tactile_loss_timestep_x.item())
+            combined_total_loss = image_losses + tactile_losses        
 
-    if config.image:
-        rollout_image_prediction = torch.stack(predicted_image_sequence, dim=0)
-        image_losses = criterion(image_groundtruth[0], rollout_image_prediction)
-    if config.tactile:
-        rollout_tactile_prediction = torch.stack(predicted_tactile_sequence, dim=0)
-        tactile_losses = criterion(tactile_groundtruth[0], rollout_tactile_prediction)
-    if config.image and config.tactile:
-        combined_total_loss = image_losses + tactile_losses
+    elif config.model_type == "SVG":
+        # outputs_scene, outputs_tactile, mae_scene_loss, mae_scene_prior_loss, mae_tactile_loss, mae_scene_list, kld_scene_list, mae_tactile_list  # this is the actual output of the model - we keep the names the same for consistency with the other models
+        rollout_image_prediction, rollout_tactile_prediction, combined_total_loss, image_losses, tactile_losses, loss_sequence_combined, loss_sequence_image, loss_sequence_tactile  = model(image_context, targets=image_groundtruth, actions=robot_data, tactiles=full_tactile_sequence, tactile_targets=tactile_groundtruth, rollout=True)
 
     return (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
             loss_sequence_image, loss_sequence_tactile, loss_sequence_combined)
-
 
 ###########################
 #
@@ -260,7 +291,9 @@ def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_conte
 
 def save_model(model, name, config, wandb_id):
     os.makedirs(config.save_dir + "/" + config.model_name + "/" + wandb_id + "/", exist_ok=True)
-    torch.save(model.state_dict(), config.save_dir + "/" + config.model_name + "/" + wandb_id + "/" + name + ".pth")  # save the model
+    save_path = config.save_dir + "/" + config.model_name + "/" + wandb_id + "/" + name + ".pth"
+    if config.model_type == "transformer":    torch.save(model.state_dict(), save_path)
+    elif config.model_type == "lstm":         model.save_model(save_path)
 
 def wandb_log(info, step):
     wandb.log(flatten_dict(info, sep="/"), step=step)

@@ -80,7 +80,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = True
+        self.debug             = False
         self.cluster           = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False
@@ -126,7 +126,7 @@ class Config:
 
         self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
-        self.num_frames 	      = 10 + 1     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
+        self.num_frames 	      = 19 + 1     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
         self.context_length       = 10
         self.prediction_horizon   = 100    # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 

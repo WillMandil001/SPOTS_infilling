@@ -124,7 +124,7 @@ class Model(nn.Module):
                 h_scene, skip_scene = self.encoder_scene(x_pred_scene)
                 h_target_scene      = self.encoder_scene(scene[index + 1])[0]
 
-                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_scene], 1)
+                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_target_scene], 1)
 
                 # cat scene and tactile together for crossover input to pipelines
                 h_scene_and_tactile = torch.cat([x_pred_tactile, h_scene], 1)
@@ -163,7 +163,7 @@ class Model(nn.Module):
                 h_scene, skip_scene = self.encoder_scene(scene[index])
                 h_target_scene      = self.encoder_scene(scene[index + 1])[0]
 
-                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_scene], 1)
+                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_target_scene], 1)
 
                 # cat scene and tactile together for crossover input to pipelines
                 h_scene_and_tactile = torch.cat([scene_tactile[index], h_scene], 1)

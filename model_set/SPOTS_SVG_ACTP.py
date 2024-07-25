@@ -124,7 +124,7 @@ class Model(nn.Module):
                 h_scene, skip_scene = self.encoder_scene(x_pred_scene)
                 h_target_scene      = self.encoder_scene(scene[index + 1])[0]
 
-                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_scene], 1)
+                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_target_scene], 1)
 
                 # cat scene and tactile together for crossover input to pipelines
                 h_scene_and_tactile = torch.cat([x_pred_tactile, h_scene], 1)
@@ -157,15 +157,19 @@ class Model(nn.Module):
                 mae_tactile += mae_tactile_list[-1]
                 mae_scene += mae_scene_list[-1]
                 kld_scene += kld_scene_list[-1]
+
+                outputs_scene.append(x_pred_scene)
+                outputs_tactile.append(x_pred_tactile)
+
             else:  # context
                 # Scene Encoding
                 h_scene, skip_scene = self.encoder_scene(scene[index])
                 h_target_scene      = self.encoder_scene(scene[index + 1])[0]
 
-                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_scene], 1)
+                h_target_scene_and_tactile = torch.cat([scene_tactile[index + 1], h_target_scene], 1)
 
                 # cat scene and tactile together for crossover input to pipelines
-                h_scene_and_tactile = torch.cat([scene_tactile[index], h_scene], 1)
+                h_scene_and_tactile = torch.cat([scene_tactile[index], h_target_scene], 1)
 
                 # Learned Prior - Z_t calculation
                 if test:
@@ -196,8 +200,10 @@ class Model(nn.Module):
                 kld_scene_list = [self.kl_criterion_scene(mu, logvar, mu_p, logvar_p)]
                 mae_tactile_list = [self.criterion_tactile(x_pred_tactile, scene_tactile[index + 1])]
 
-            outputs_scene.append(x_pred_scene)
-            outputs_tactile.append(x_pred_tactile)
+                outputs_scene = [x_pred_scene]
+                outputs_tactile = [x_pred_tactile]
+
+
 
         if test is False:
             loss_scene = mae_scene + (kld_scene * self.features.beta)

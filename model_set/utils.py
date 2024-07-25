@@ -19,7 +19,7 @@ from PIL import Image, ImageDraw
 
 from torchvision import datasets, transforms
 from torch.autograd import Variable
-import imageio
+# import imageio
 
 hostname = socket.gethostname ()
 
@@ -102,23 +102,23 @@ def draw_text_tensor(tensor, text):
     img = np.asarray (pil)
     return Variable (torch.Tensor (img / 255.)).transpose (1, 2).transpose (0, 1)
 
-def save_gif(filename, inputs, duration=0.25):
-    images = []
-    for tensor in inputs:
-        img = image_tensor (tensor, padding=0)
-        img = img.cpu ()
-        img = img.transpose (0, 1).transpose (1, 2).clamp (0, 1)
-        images.append (img.numpy ())
-    imageio.mimsave (filename, images, duration=duration)
+# def save_gif(filename, inputs, duration=0.25):
+#     images = []
+#     for tensor in inputs:
+#         img = image_tensor (tensor, padding=0)
+#         img = img.cpu ()
+#         img = img.transpose (0, 1).transpose (1, 2).clamp (0, 1)
+#         images.append (img.numpy ())
+#     imageio.mimsave (filename, images, duration=duration)
 
-def save_gif_with_text(filename, inputs, text, duration=0.25):
-    images = []
-    for tensor, text in zip (inputs, text):
-        img = image_tensor ([draw_text_tensor (ti, texti) for ti, texti in zip (tensor, text)], padding=0)
-        img = img.cpu ()
-        img = img.transpose (0, 1).transpose (1, 2).clamp (0, 1).numpy ()
-        images.append (img)
-    imageio.mimsave (filename, images, duration=duration)
+# def save_gif_with_text(filename, inputs, text, duration=0.25):
+#     images = []
+#     for tensor, text in zip (inputs, text):
+#         img = image_tensor ([draw_text_tensor (ti, texti) for ti, texti in zip (tensor, text)], padding=0)
+#         img = img.cpu ()
+#         img = img.transpose (0, 1).transpose (1, 2).clamp (0, 1).numpy ()
+#         images.append (img)
+#     imageio.mimsave (filename, images, duration=duration)
 
 def save_image(filename, tensor):
     img = make_image (tensor)

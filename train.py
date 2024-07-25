@@ -30,9 +30,9 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-flags.DEFINE_string ('model_name',               "SVG-ACTP-SOP",         'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_name',               "SVG-ACTP",         'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "SVG",          'Set the type of model you are going to use (transformer, SVG, ACTP)')
-flags.DEFINE_string ('test_version',             "LSTM-test",      'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_string ('test_version',             "testing...",      'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('infill',                   False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
@@ -306,6 +306,7 @@ def main(argv):
         update_info = {"grad_norm": torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0),
                        "lr": model.prior_optimizer.param_groups[0]['lr'],
                        "loss": total_loss.item()}
+        if config.image:    update_info["Training: image loss"]     = total_loss.item()
         if config.image:    update_info["Training: image kld loss"] = loss.item()
         if config.tactile:  update_info["Training: tactile loss"]   = tactile_loss.item()    
         return update_info

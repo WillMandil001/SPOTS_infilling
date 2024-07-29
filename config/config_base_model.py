@@ -122,11 +122,11 @@ class Config:
         self.save_interval   = 10_000
         self.log_interval    = 100
         if self.debug: self.eval_interval   = 10
-        else:          self.eval_interval   = 500 # 500      
+        else:          self.eval_interval   = 500 # 500
 
         self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
-        self.num_frames 	      = 19 + 1     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
+        self.num_frames 	      = 10 + 1     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
         self.context_length       = 10
         self.prediction_horizon   = 100    # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 
@@ -225,11 +225,11 @@ class Config:
         self.model_name_save_appendix  = ""
 
         self.state_action_size         = self.action_dim * 2
-        self.rnn_size                  = 256
-        self.predictor_rnn_layers      = 4
-        self.posterior_rnn_layers      = 3
-        self.prior_rnn_layers          = 3
-        self.g_dim                     = 256
+        self.rnn_size                  = 256 # Large: 512 , Medium: 256
+        self.predictor_rnn_layers      = 6   # Large: 6   , Medium: 4
+        self.posterior_rnn_layers      = 4   # Large: 4   , Medium: 3
+        self.prior_rnn_layers          = 4   # Large: 4   , Medium: 3
+        self.g_dim                     = 256 # Large: 512 , Medium: 256
         self.z_dim                     = 10
         self.tactile_size              = self.tactile_dim
 

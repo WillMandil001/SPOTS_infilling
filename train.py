@@ -56,15 +56,17 @@ flags.DEFINE_string ('pretrained_config_path',  "/home/wmandil/robotics/SPOTS_in
 # Build the dataset and dataloader
 ###########################
 class VisionTactileDataset(Dataset):
-    def __init__(self, config, map_file, context_len=10, prediction_horizon=10, train=True, wandb_id= ""):
+    def __init__(self, config, map_file, context_len, prediction_horizon, train=True, validate=False, wandb_id= ""):
         self.config = config
         self.train = train
         self.map_file = map_file
         self.context_len = context_len
         self.wandb_id = wandb_id
 
-        if train == True:  self.prediction_horizon = 1
-        else:              self.prediction_horizon = prediction_horizon
+        if (train == True or validate==True) and self.config.model_type=="transformer": self.prediction_horizon = 1  # we want it always to be 1! as we dont rollout the transformer in training.
+        else:                                                                           self.prediction_horizon = prediction_horizon
+
+        print("self.prediction_horizon: ", self.prediction_horizon)
 
         self.map_data = np.load(self.map_file, allow_pickle=True)
 
@@ -97,6 +99,8 @@ class VisionTactileDataset(Dataset):
         if self.config.action:   robot_state  = np.stack(robot_state, axis=0)    # shape is robot=[c+p, bs, 6]
         if self.config.image:    image_data   = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
         if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
+
+        # train_utils.validate_action_space(robot_state, self.config)
 
         return torch.tensor(robot_state), torch.tensor(image_data) , torch.tensor(tactile_data)
 
@@ -195,7 +199,12 @@ def main(argv):
         print("setting model to VGPT version")
         config.model_name      = "VGPT"
         config.action, config.tactile = False, False
-    
+
+    elif "SVG-ACTP-SOP" in FLAGS.model_name:
+        print("setting model to SPOTS_SVG_ACTP_SOP version")
+        config.model_name      = "SVG-ACTP-SOP"
+        config.action, config.tactile = True, True
+
     elif "SVG-ACTP" in FLAGS.model_name:
         print("setting model to SPOTS_SVG_ACTP version")
         config.model_name      = "SVG-ACTP"
@@ -241,10 +250,10 @@ def main(argv):
     ###########################
     # Load the dataset  | load the tfrecords RLDS dataset saved locally at: /home/wmandil/tensorflow_datasets/robot_pushing_dataset/1.0.0
     ###########################
-    train_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length,  prediction_horizon=1, train=True)
+    train_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length,  prediction_horizon=config.num_frames - config.context_length, train=True)
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=1, train=False)
+    val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
     viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)

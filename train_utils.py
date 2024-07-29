@@ -283,6 +283,9 @@ def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_conte
     return (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
             loss_sequence_image, loss_sequence_tactile, loss_sequence_combined)
 
+def validate_action_space(robot_state, config):
+    pass
+
 ###########################
 #
 # Very Util util funcitons haha

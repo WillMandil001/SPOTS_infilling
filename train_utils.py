@@ -274,7 +274,9 @@ def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_conte
             rollout_tactile_prediction = torch.stack(predicted_tactile_sequence, dim=0)
             tactile_losses = criterion(tactile_groundtruth[0], rollout_tactile_prediction)
         if config.image and config.tactile:
-            combined_total_loss = image_losses + tactile_losses        
+            combined_total_loss = image_losses + tactile_losses
+        if combined_total_loss == None:
+            combined_total_loss = image_losses if config.image else tactile_losses
 
     elif config.model_type == "SVG":
         # outputs_scene, outputs_tactile, mae_scene_loss, mae_scene_prior_loss, mae_tactile_loss, mae_scene_list, kld_scene_list, mae_tactile_list  # this is the actual output of the model - we keep the names the same for consistency with the other models

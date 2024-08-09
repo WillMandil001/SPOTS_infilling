@@ -30,7 +30,7 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-flags.DEFINE_string ('model_name',               "AC-VGPT",         'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_name',               "AC-VTGPT",         'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",     'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "testing...",      'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('infill',                   False,          'Whether to infill or not')
@@ -38,6 +38,9 @@ flags.DEFINE_boolean('cluster',                  False,          'Whether or not
 
 # training flags
 flags.DEFINE_integer('num_steps',                0,        'set to 0 to use the configs num_steps') 
+
+# model specific flags
+flags.DEFINE_boolean('use_all_tactile_samples',  True,       'whether to use all the tactile frames between the under sampled sequences')
 
 # Pre-training flags
 flags.DEFINE_boolean('pretrained',               False,       '')
@@ -86,7 +89,16 @@ class VisionTactileDataset(Dataset):
                 step_data = self.data[start_index + i]
                 if self.config.action:      robot_state.append(step_data[0])
                 if self.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
-                if self.config.tactile:     tactile_data.append(step_data[2].flatten())
+                if self.config.use_all_tactile_samples == False:
+                    if self.config.tactile:     tactile_data.append(step_data[2].flatten())
+                else:
+                    # concat all the tactile data into one long tensor from the samples in between as well:
+                    tactile_sample_sequence = []
+                    for j in range(self.config.sample_rate):
+                        step_data = self.data[i + j]
+                        if self.config.tactile:     tactile_sample_sequence.append(step_data[2].flatten())
+                    tactile_data.append(np.concatenate(tactile_sample_sequence, axis=0))
+
         else:
             steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
             robot_state, image_data, tactile_data  = [], [], []
@@ -227,6 +239,11 @@ def main(argv):
 
     config.infill_patches  = FLAGS.infill
     if config.infill_patches: config.model_name += " -infill"
+
+    if FLAGS.use_all_tactile_samples: 
+        config.use_all_tactile_samples = True
+        config.tactile_dim = config.tactile_dim * config.sample_rate
+        config.tactile_size = config.tactile_dim
 
     config.test_version    = FLAGS.test_version
     config.experiment_name = FLAGS.test_version + " - " + config.model_name

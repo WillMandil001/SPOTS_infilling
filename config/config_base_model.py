@@ -80,7 +80,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = False
+        self.debug             = True
         self.cluster           = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False
@@ -133,10 +133,12 @@ class Config:
         self.num_workers = 4
         self.device = "cuda"
 
-        self.scale_data            = True
+        self.scale_data              = True
 
-        self.blind_image_data      = False
-        self.BeIT                  = False
+        self.use_all_tactile_samples = False
+
+        self.blind_image_data        = False
+        self.BeIT                    = False
 
         self.shuffle_buffer_size     = 1000
         self.val_shuffle_buffer_size = 1000

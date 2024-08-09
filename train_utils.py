@@ -17,6 +17,7 @@ import wandb
 import torch
 import os
 import numpy as np
+import cv2
 # from absl import logging
 from collections import defaultdict
 from contextlib import contextmanager
@@ -27,6 +28,33 @@ import matplotlib.pyplot as plt
 
 from flax.traverse_util import flatten_dict
 from matplotlib.gridspec import GridSpec
+
+
+###########################
+#
+# loss and cost functions
+#
+###########################
+
+def get_object_angle(image_sequence):
+    '''
+    This function takes in a sequence of images and returns the angle of the object in the image
+    - The angle is with respect to the horizontal axis in the image
+    - we will use cv2 functions to iscolate the object and then calculate the principle component of the object to find the dominant angle
+    - we will return the angle in degrees
+    '''
+
+    object_angle_list = []
+
+    image = image_sequence[0].permute(1, 2, 0).cpu().numpy()
+    imageGray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    _, thresh = cv2.threshold(imageGray, 55, 255, cv2.THRESH_BINARY)
+    des = cv2.bitwise_not(thresh)
+    
+
+    return object_angle_list
+
+
 
 
 ###########################

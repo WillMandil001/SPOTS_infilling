@@ -88,49 +88,50 @@ class CausalSelfAttention(nn.Module):
 				context_length = config.context_length
 				num_frames = config.num_frames
 				patches_per_frame = config.patches_per_frame
+				patches_per_tactile_frame = config.patches_per_tactile_frame
 
 				maskimage = torch.zeros(context_length * patches_per_frame, context_length * patches_per_frame)
 				for i in range(context_length):
 					start_row, end_row = i * patches_per_frame, (i + 1) * patches_per_frame
 					maskimage[start_row:end_row, :end_row] = 1
 				image_maskarray = maskimage.type(torch.bool)
-
+				image_maskarray_copy = image_maskarray.clone()
 				# 2: image - tactile
-				tactile_maskarray = torch.zeros(context_length * patches_per_frame, context_length)
+				tactile_maskarray = torch.zeros(context_length * patches_per_frame, context_length * patches_per_tactile_frame)
 				for i in range(context_length):
 					start_row, end_row = i, (i + 1)
-					tactile_maskarray[start_row * patches_per_frame:end_row * patches_per_frame, :end_row] = 1
+					tactile_maskarray[start_row * patches_per_frame:end_row * patches_per_frame, :end_row*patches_per_tactile_frame] = 1
 				tactile_maskarray = tactile_maskarray.type(torch.bool)
 
 				# 3: image - action
 				# action_maskarray = torch.ones(context_length * patches_per_frame, num_frames)
-				action_maskarray = torch.zeros(config.context_length * config.patches_per_frame, config.context_length+1)
-				for i in range(config.context_length):
+				action_maskarray = torch.zeros(context_length * patches_per_frame, context_length+1)
+				for i in range(context_length):
 					start_row, end_row = i, (i + 2)
-					action_maskarray[start_row * config.patches_per_frame:end_row * config.patches_per_frame, :end_row] = 1
+					action_maskarray[start_row * patches_per_frame:end_row * patches_per_frame, :end_row] = 1
 
 				mask_array1 = torch.cat([action_maskarray, tactile_maskarray, image_maskarray], axis = 1)
 
 				##### tactile queries
 				# 4. tactile - images
-				image_maskarray = torch.zeros(context_length, context_length * patches_per_frame)
+				image_maskarray = torch.zeros(context_length * patches_per_tactile_frame, context_length * patches_per_frame)
 				for i in range(context_length):
 					start_row, end_row = i, (i + 1)
-					image_maskarray[start_row:end_row, :end_row * patches_per_frame] = 1
+					image_maskarray[start_row*patches_per_tactile_frame:end_row*patches_per_tactile_frame, :end_row * patches_per_frame] = 1
 				image_maskarray = image_maskarray.type(torch.bool)
 
 				# 5. tactile - tactile
-				tactile_maskarray = torch.zeros(context_length, context_length)
+				tactile_maskarray = torch.zeros(context_length * patches_per_tactile_frame, context_length * patches_per_tactile_frame)
 				for i in range(context_length):
 					start_row, end_row = i, (i + 1)
-					tactile_maskarray[start_row:end_row, :end_row] = 1
+					tactile_maskarray[start_row * patches_per_tactile_frame:end_row * patches_per_tactile_frame, :end_row * patches_per_tactile_frame] = 1
 				tactile_maskarray = tactile_maskarray.type(torch.bool)
 
 				# 6. tactile queries - action keys
-				action_maskarray = torch.zeros(context_length, context_length + 1)
+				action_maskarray = torch.zeros(context_length * patches_per_tactile_frame, context_length + 1)
 				for i in range(context_length):
 					start_row, end_row = i, (i + 2)
-					action_maskarray[start_row:end_row, :end_row] = 1
+					action_maskarray[start_row * patches_per_tactile_frame:end_row * patches_per_tactile_frame, :end_row] = 1
 
 				mask_array2 = torch.cat([action_maskarray, tactile_maskarray, image_maskarray], axis = 1)
 
@@ -143,18 +144,19 @@ class CausalSelfAttention(nn.Module):
 				image_maskarray = image_maskarray.type(torch.bool)
 
 				# 8 action - tactile
-				tactile_maskarray = torch.zeros(context_length+1, context_length)
+				tactile_maskarray = torch.zeros(context_length+1, context_length*patches_per_tactile_frame)
 				for i in range(context_length+1):
 					start_row, end_row = i, (i + 1)
-					tactile_maskarray[start_row:end_row, :end_row] = 1
+					tactile_maskarray[start_row:end_row, :end_row*patches_per_tactile_frame] = 1
 				tactile_maskarray = tactile_maskarray.type(torch.bool)
 
 				# 9 action - action
-				actionaction_maskarray = torch.zeros(config.context_length+1, config.context_length+1)
-				for i in range(0, config.context_length+1):
+				actionaction_maskarray = torch.zeros(context_length+1, context_length+1)
+				for i in range(0, context_length+1):
 					start_row, end_row = i, (i + 2)
 					actionaction_maskarray[start_row:end_row, :end_row] = 1
 
+				# 10 combine all the masks
 				mask_array3 = torch.cat([actionaction_maskarray, tactile_maskarray, image_maskarray], axis = 1)
 
 				self.maskarray = torch.cat([mask_array3, mask_array2, mask_array1], axis = 0)
@@ -162,14 +164,14 @@ class CausalSelfAttention(nn.Module):
 				self.maskarray = self.maskarray.type(torch.bool)
 
 	def viz_mask(self):
-		plt.imshow(self.maskarray.cpu().numpy(), cmap='gray', extent=[0, self.maskarray.cpu().numpy().shape[1], self.maskarray.cpu().numpy().shape[0], 0])
+		plt.imshow(self.maskarray.numpy(), cmap='gray', extent=[0, self.maskarray.numpy().shape[1], self.maskarray.numpy().shape[0], 0])
 		plt.title('Attention Mask')
 		plt.xlabel('Key Positions')
 		plt.ylabel('Query Positions')
 		plt.colorbar()
 
-		x_ticks = []
-		y_ticks = []
+		x_ticks = [0, 0]
+		y_ticks = [0, 0]
 		x_gaps_labels = []
 		y_gaps_labels = []
 
@@ -178,24 +180,31 @@ class CausalSelfAttention(nn.Module):
 			action_y_ticks = [(i) for i in range(0, self.config.context_length+1)]
 			x_ticks += action_x_ticks
 			y_ticks += action_y_ticks
+
 			x_gaps_labels += [f'Robot State {i}' for i in range(1, len(action_x_ticks) + 1)]
 			y_gaps_labels += [f'Robot State {i}' for i in range(1, len(action_y_ticks) + 1)]
 
 		if self.config.tactile == True:
-			tactile_x_ticks = [(i + len(x_ticks)) for i in range(0, self.config.context_length)]
-			tactile_y_ticks = [(i + len(x_ticks)) for i in range(0, self.config.context_length)]
+			tactile_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], ((self.config.context_length) * self.config.patches_per_tactile_frame), self.config.patches_per_tactile_frame)]
+			tactile_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], ((self.config.context_length) * self.config.patches_per_tactile_frame), self.config.patches_per_tactile_frame)]
 			x_ticks += tactile_x_ticks
 			y_ticks += tactile_y_ticks
-			x_gaps_labels += [f'Tactile Frames {i}' for i in range(1, len(tactile_x_ticks)+1)]
-			y_gaps_labels += [f'Tactile Frames {i}' for i in range(1, len(tactile_y_ticks)+1)]
+
+			x_gaps_labels += [f'Tactile Patch {i}'  for i in range(1, self.config.context_length+1)]
+			y_gaps_labels += [f'Tactile Patch {i}'  for i in range(1, self.config.context_length+1)]
 
 		if self.config.image == True:
-			image_x_ticks = [(i + len(x_ticks)) for i in range(0, (self.config.context_length * self.config.patches_per_frame), self.config.patches_per_frame)]
-			image_y_ticks = [(i + len(x_ticks)) for i in range(0, (self.config.context_length * self.config.patches_per_frame), self.config.patches_per_frame)]
+			image_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
+			image_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
 			x_ticks += image_x_ticks
 			y_ticks += image_y_ticks
-			x_gaps_labels += [f'Image Patch {i} \n {self.config.patches_per_frame} tokens per image' for i in range(1, self.config.context_length)]
-			y_gaps_labels += [f'Image Patch {i} \n {self.config.patches_per_frame} tokens per image' for i in range(1, self.config.context_length)]
+
+			x_gaps_labels += [f'Image Patch {i}' for i in range(1, self.config.context_length + 1)]
+			y_gaps_labels += [f'Image Patch {i}' for i in range(1, self.config.context_length + 1)]
+
+		# remove the first two zeros
+		x_ticks = x_ticks[2:]
+		y_ticks = y_ticks[2:]
 
 		# Compute the middle points between the ticks
 		x_gaps = [(x_ticks[i] + x_ticks[i+1]) / 2 for i in range(len(x_ticks) - 1)]

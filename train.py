@@ -30,9 +30,9 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-flags.DEFINE_string ('model_name',               "AC-VTGPT",         'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
-flags.DEFINE_string ('model_type',               "transformer",     'Set the type of model you are going to use (transformer, SVG, ACTP)')
-flags.DEFINE_string ('test_version',             "testing...",      'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
+flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('infill',                   False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
@@ -89,16 +89,16 @@ class VisionTactileDataset(Dataset):
                 step_data = self.data[start_index + i]
                 if self.config.action:      robot_state.append(step_data[0])
                 if self.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
-                if self.config.use_all_tactile_samples == False:
-                    if self.config.tactile:     tactile_data.append(step_data[2].flatten())
-                else:
-                    # concat all the tactile data into one long tensor from the samples in between as well:
-                    tactile_sample_sequence = []
-                    for j in range(self.config.sample_rate):
-                        step_data = self.data[i + j]
-                        if self.config.tactile:     tactile_sample_sequence.append(step_data[2].flatten())
-                    tactile_data.append(np.concatenate(tactile_sample_sequence, axis=0))
-
+                if self.config.tactile:
+                    if self.config.use_all_tactile_samples == False:
+                         tactile_data.append(step_data[2].flatten())
+                    else:
+                        tactile_sample_sequence = []
+                        for j in range(self.config.sample_rate):
+                            step_data = self.data[i + j]
+                            tactile_sample_sequence.append(step_data[2].flatten())
+                        tactile_data.append(np.concatenate(tactile_sample_sequence, axis=0))
+                    tactile_data = self.tokenize_tactile_frame(tactile_data)
         else:
             steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
             robot_state, image_data, tactile_data  = [], [], []
@@ -190,6 +190,17 @@ class VisionTactileDataset(Dataset):
                 joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
                 joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
                 joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
+
+    def tokenize_tactile_frame(self, tactile_frame):
+        # we split the tactile frame (48 features) into self.patches_per_tactile_frame number of patches
+        # if there is multiple_tacitle frames then we split per tactile frame, not across the frames splitting by config.sample_rate
+
+        if self.config.use_all_tactile_samples == False:
+
+        else:
+
+
+        return tactile_frame
 
 def main(argv):
     ###########################

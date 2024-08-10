@@ -42,6 +42,7 @@ class model_config_builder_transformer():
         self.freeze_image_tokenizer          = config.freeze_image_tokenizer
         self.load_pretrained_image_decoder   = config.load_pretrained_image_decoder
         self.freeze_image_decoder            = config.freeze_image_decoder
+        self.patches_per_tactile_frame       = config.patches_per_tactile_frame
 
 class model_config_builder_svg():
     def __init__(self, config):
@@ -184,9 +185,10 @@ class Config:
         self.transformer_input_height = 16
         self.transformer_input_width  = 16
 
-        self.input_dim   	   = 3
-        self.action_dim 	   = 6
-        self.tactile_dim 	   = 48
+        self.input_dim   	           = 3
+        self.action_dim 	           = 6
+        self.tactile_dim 	           = 48
+        self.patches_per_tactile_frame = 16 
 
         self.enc_dim 	  	    = 768
         self.num_heads 	  	    = 12

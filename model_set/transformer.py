@@ -164,7 +164,7 @@ class CausalSelfAttention(nn.Module):
 				self.maskarray = self.maskarray.type(torch.bool)
 
 	def viz_mask(self):
-		plt.imshow(self.maskarray.numpy(), cmap='gray', extent=[0, self.maskarray.numpy().shape[1], self.maskarray.numpy().shape[0], 0])
+		plt.imshow(self.maskarray.cpu().numpy(), cmap='gray', extent=[0, self.maskarray.cpu().numpy().shape[1], self.maskarray.cpu().numpy().shape[0], 0])
 		plt.title('Attention Mask')
 		plt.xlabel('Key Positions')
 		plt.ylabel('Query Positions')
@@ -185,8 +185,8 @@ class CausalSelfAttention(nn.Module):
 			y_gaps_labels += [f'Robot State {i}' for i in range(1, len(action_y_ticks) + 1)]
 
 		if self.config.tactile == True:
-			tactile_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], ((self.config.context_length) * self.config.patches_per_tactile_frame), self.config.patches_per_tactile_frame)]
-			tactile_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], ((self.config.context_length) * self.config.patches_per_tactile_frame), self.config.patches_per_tactile_frame)]
+			tactile_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], (x_ticks[-1] - x_ticks[-2] + ((self.config.context_length) * self.config.patches_per_tactile_frame)), self.config.patches_per_tactile_frame)]
+			tactile_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], (x_ticks[-1] - x_ticks[-2] + ((self.config.context_length) * self.config.patches_per_tactile_frame)), self.config.patches_per_tactile_frame)]
 			x_ticks += tactile_x_ticks
 			y_ticks += tactile_y_ticks
 
@@ -194,8 +194,8 @@ class CausalSelfAttention(nn.Module):
 			y_gaps_labels += [f'Tactile Patch {i}'  for i in range(1, self.config.context_length+1)]
 
 		if self.config.image == True:
-			image_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
-			image_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
+			image_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], x_ticks[-1] - x_ticks[-2] + ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
+			image_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], x_ticks[-1] - x_ticks[-2] + ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
 			x_ticks += image_x_ticks
 			y_ticks += image_y_ticks
 
@@ -306,8 +306,8 @@ class VPGPT(nn.Module):
 			self.transformer.action_embedding  = nn.Linear(config.action_dim, config.n_embd)
 
 		if config.tactile:
-			self.transformer.tactile_embedding = nn.Linear(config.tactile_dim, config.n_embd)
-			self.transformer.tactile_debedding = nn.Linear(config.n_embd, config.tactile_dim)
+			self.transformer.tactile_embedding = nn.Linear(int(config.tactile_dim / config.patches_per_tactile_frame), config.n_embd)
+			self.transformer.tactile_debedding = nn.Linear(config.n_embd, int(config.tactile_dim / config.patches_per_tactile_frame))
 
 		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:      
 			pretrained_image_model_config_path = config.pretrained_config_path
@@ -358,7 +358,11 @@ class VPGPT(nn.Module):
 		tok_emb = tok_emb.reshape(tok_emb.shape[0], -1, tok_emb.shape[3])							# flatten the time_steps and the patches into one long sequence
 
 		if self.config.tactile:
-			tactile_emb = self.transformer.tactile_embedding(tactiles)
+			# split the tactile data into patches then embed them
+			tactiles = tactiles.view(tactiles.shape[0], tactiles.shape[1], self.config.patches_per_tactile_frame, -1) 			# shape (b, t,  num_patches, tactile features / num_patches)
+			tactile_emb = self.transformer.tactile_embedding(tactiles) 															# shape (b, t,  num_patches, n_embd)
+			tactile_emb = tactile_emb.view(tactiles.shape[0], tactiles.shape[1] * self.config.patches_per_tactile_frame, -1)	# shape (b, t * num_patches, n_embd)
+
 			tok_emb = torch.cat((tactile_emb, tok_emb), 1)
 
 		if self.config.action:
@@ -379,9 +383,9 @@ class VPGPT(nn.Module):
 		if self.config.action and not self.config.tactile:
 			action, x = torch.split(x, [self.config.context_length+1, self.config.context_length * self.config.patches_per_frame], dim=1)
 		elif self.config.tactile and not self.config.action:
-			x_tactile, x  = torch.split(x, [self.config.context_length + 1, self.config.context_length, self.config.context_length * self.config.patches_per_frame], dim=1)
+			x_tactile, x  = torch.split(x, [self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
 		elif self.config.tactile and self.config.action:
-			action, x_tactile, x = torch.split(x, [self.config.context_length + 1, self.config.context_length, self.config.context_length * self.config.patches_per_frame], dim=1)
+			action, x_tactile, x = torch.split(x, [self.config.context_length + 1, self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
 
 		x = x.view(-1, self.config.context_length, int(x.shape[1] / self.config.context_length), x.shape[2])  # input  shape = [bs, t*num_patch, enc_dim] || output shape = [bs, t, num_patch, enc_dim]
 		if self.config.action:	x = x.reshape(-1, x.shape[2], x.shape[3])  									  # output shape = [bs*t, num_patch, enc_dim]	
@@ -401,6 +405,8 @@ class VPGPT(nn.Module):
 
 		if self.config.image ==True and self.config.tactile:
 			pred_tactile = self.transformer.sig(self.transformer.tactile_debedding(x_tactile))
+			pred_tactile = pred_tactile.view(n, self.config.context_length, self.config.patches_per_tactile_frame, -1)
+			pred_tactile = pred_tactile.view(n, self.config.context_length, -1)
 			tactile_loss = F.l1_loss(pred_tactile, tactile_targets, reduction='mean')
 			total_loss = (1.0*loss) + (1.0*tactile_loss)
 

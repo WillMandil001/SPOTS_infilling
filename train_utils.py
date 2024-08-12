@@ -50,11 +50,9 @@ def get_object_angle(image_sequence):
     imageGray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     _, thresh = cv2.threshold(imageGray, 55, 255, cv2.THRESH_BINARY)
     des = cv2.bitwise_not(thresh)
-    
+
 
     return object_angle_list
-
-
 
 
 ###########################

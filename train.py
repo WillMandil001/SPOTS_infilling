@@ -40,7 +40,7 @@ flags.DEFINE_boolean('cluster',                  False,          'Whether or not
 flags.DEFINE_integer('num_steps',                0,        'set to 0 to use the configs num_steps') 
 
 # model specific flags
-flags.DEFINE_boolean('use_all_tactile_samples',  True,       'whether to use all the tactile frames between the under sampled sequences')
+flags.DEFINE_boolean('use_all_tactile_samples',  False,       'whether to use all the tactile frames between the under sampled sequences')
 
 # Pre-training flags
 flags.DEFINE_boolean('pretrained',               False,       '')
@@ -98,7 +98,6 @@ class VisionTactileDataset(Dataset):
                             step_data = self.data[i + j]
                             tactile_sample_sequence.append(step_data[2].flatten())
                         tactile_data.append(np.concatenate(tactile_sample_sequence, axis=0))
-                    tactile_data = self.tokenize_tactile_frame(tactile_data)
         else:
             steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
             robot_state, image_data, tactile_data  = [], [], []
@@ -190,17 +189,6 @@ class VisionTactileDataset(Dataset):
                 joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
                 joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
                 joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
-
-    def tokenize_tactile_frame(self, tactile_frame):
-        # we split the tactile frame (48 features) into self.patches_per_tactile_frame number of patches
-        # if there is multiple_tacitle frames then we split per tactile frame, not across the frames splitting by config.sample_rate
-
-        if self.config.use_all_tactile_samples == False:
-
-        else:
-
-
-        return tactile_frame
 
 def main(argv):
     ###########################

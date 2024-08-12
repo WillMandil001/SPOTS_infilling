@@ -2,12 +2,12 @@ import datetime
 
 class model_config_builder_transformer():
     def __init__(self, config):
-        if config.image == True and config.tactile == False and config.action == False:
+        if config.image == True and config.action == False and config.tactile == False:
             self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length)
         if config.image == True and config.action == True and config.tactile == False:
             self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + (config.context_length + 1)
         if config.image == True and config.action == True and config.tactile == True:
-            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + (config.context_length + 1) + config.context_length
+            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + (config.context_length + 1) + (config.context_length*config.patches_per_tactile_frame)
 
         self.n_layer = config.num_encoder_layers
         self.n_head = config.num_heads
@@ -166,7 +166,7 @@ class Config:
         self.beta2 	       = 0.99 
         self.weight_decay  = 1e-4 
         self.learning_rate = 0.001
-    
+
         ###########################
         # SPOTS-Transformer parameters
         ###########################
@@ -188,7 +188,7 @@ class Config:
         self.input_dim   	           = 3
         self.action_dim 	           = 6
         self.tactile_dim 	           = 48
-        self.patches_per_tactile_frame = 16 
+        self.patches_per_tactile_frame = 16  # 1 means no patches, 
 
         self.enc_dim 	  	    = 768
         self.num_heads 	  	    = 12

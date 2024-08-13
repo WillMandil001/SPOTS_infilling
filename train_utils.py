@@ -225,15 +225,15 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
                     x = np.random.randint(0, config.image_height - infill_patch_size)
                     y = np.random.randint(0, config.image_width  - infill_patch_size)
                 image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
-            if config.test_tactile_infill:
-                num_taxels_to_infill = np.random.randint(config.min_infill_taxels, config.max_infill_taxels)
-                infill_taxels = np.random.randint(0, config.tactile_dim, num_taxels_to_infill)
-                tactile_context[:, :, infill_taxels] = 0.0
         if config.action:
             robot_data    = batch[0].to(config.device)                                          # take the full sequence of robot data shape = [bs, c+p,   6])       
         if config.tactile:
             tactile_context = batch[2][:, :config.context_length, ...].to(config.device)
             tactile_predict = batch[2][:,  config.context_length:, ...].to(config.device)
+            if config.test_tactile_infill:
+                num_taxels_to_infill = np.random.randint(config.min_infill_taxels, config.max_infill_taxels)
+                infill_taxels = np.random.randint(0, config.tactile_dim, num_taxels_to_infill)
+                tactile_context[:, :, infill_taxels] = 0.0
     else:
         if config.image:
             image_context = batch[1][:, :-1, ...].to(config.device)    # take all but the last image          shape = [bs, c+p-1, 64, 64, 3])
@@ -248,16 +248,15 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
                     x = np.random.randint(0, config.image_height - infill_patch_size)
                     y = np.random.randint(0, config.image_width  - infill_patch_size)
                 image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
-            if config.train_tactile_infill:
-                num_taxels_to_infill = np.random.randint(config.min_infill_taxels, config.max_infill_taxels)
-                infill_taxels = np.random.randint(0, config.tactile_dim, num_taxels_to_infill)
-                tactile_context[:, :, infill_taxels] = 0.0
-
         if config.action:
             robot_data    = batch[0].to(config.device)                   # take the full sequence of robot data shape = [bs, c+p,   6])
         if config.tactile:
             tactile_context = batch[2][:, :-1, ...].to(config.device)    # take all but the last image          shape = [bs, c+p-1, 48])
             tactile_predict = batch[2][:,  1:, ...].to(config.device)    # take just the last image             shape = [bs, 1,     48])
+            if config.train_tactile_infill:
+                num_taxels_to_infill = np.random.randint(config.min_infill_taxels, config.max_infill_taxels)
+                infill_taxels = np.random.randint(0, config.tactile_dim, num_taxels_to_infill)
+                tactile_context[:, :, infill_taxels] = 0.0
 
     # run the model
     if horizon_rollout:

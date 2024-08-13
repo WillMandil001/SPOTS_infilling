@@ -244,6 +244,11 @@ def main(argv):
     if config.train_infill: config.model_name += "-trn inf"
     if config.test_infill:  config.model_name += "-tst inf"
 
+    if FLAGS.train_tactile_infill:    config.train_tactile_infill   = FLAGS.train_tactile_infill
+    if FLAGS.test_tactile_infill:     config.test_tactile_infill    = FLAGS.test_tactile_infill
+    if config.train_tactile_infill: config.model_name += "-trn tac inf"
+    if config.test_tactile_infill:  config.model_name += "-tst tac inf"
+
     if FLAGS.use_all_tactile_samples: 
         config.use_all_tactile_samples = True
         config.tactile_dim = config.tactile_dim * config.sample_rate

@@ -33,8 +33,10 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
-flags.DEFINE_boolean('train_infill',             True,          'Whether to infill or not')
+flags.DEFINE_boolean('train_infill',             False,          'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              False,          'Whether to infill or not')
+flags.DEFINE_boolean('train_tactile_infill',     True,          'Whether to infill or not')
+flags.DEFINE_boolean('test_tactile_infill',      True,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags

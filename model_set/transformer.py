@@ -53,33 +53,34 @@ class CausalSelfAttention(nn.Module):
 				self.maskarray = self.maskarray.type(torch.bool)
 
 			if config.action == True and config.tactile == False:
-				self.maskimage = torch.zeros(config.context_length * config.patches_per_frame, config.context_length * config.patches_per_frame)
+
+				maskimage = torch.zeros(config.context_length * config.patches_per_frame, config.context_length * config.patches_per_frame)
 				for i in range(config.context_length):
 					start_row, end_row = i * config.patches_per_frame, (i + 1) * config.patches_per_frame
-					self.maskimage[start_row:end_row, :end_row] = 1
+					maskimage[start_row:end_row, :end_row] = 1
 
 				# action queries - image keys
-				image_maskarray = torch.zeros(config.context_length+1, config.context_length * config.patches_per_frame)
+				image_maskarray = torch.zeros((config.context_length+1)*config.patches_per_action_frame, config.context_length * config.patches_per_frame)
 				for i in range(config.context_length+1):
 					start_row, end_row = i, (i + 1)
-					image_maskarray[start_row:end_row, :end_row * config.patches_per_frame] = 1
+					image_maskarray[start_row*config.patches_per_action_frame:end_row*config.patches_per_action_frame, :end_row * config.patches_per_frame] = 1
 
 				# action queries - action keys
-				action_maskarray = torch.zeros(config.context_length+1, config.context_length+1)
+				action_maskarray = torch.zeros((config.context_length+1)*config.patches_per_action_frame, (config.context_length+1)*config.patches_per_action_frame)
 				for i in range(0, config.context_length+1):
 					start_row, end_row = i, (i + 2)
-					action_maskarray[start_row:end_row, :end_row] = 1
+					action_maskarray[start_row*config.patches_per_action_frame:end_row*config.patches_per_action_frame, :end_row*config.patches_per_action_frame] = 1
 
 				# image queries - action keys  (160, 11)
-				self.maskarray_action_X = torch.zeros(config.context_length * config.patches_per_frame, config.context_length+1)
+				maskarray_action_X = torch.zeros(config.context_length * config.patches_per_frame, (config.context_length+1)*config.patches_per_action_frame)
 				for i in range(config.context_length):
 					start_row, end_row = i, (i + 2)
-					self.maskarray_action_X[start_row * config.patches_per_frame:end_row * config.patches_per_frame, :end_row] = 1
+					maskarray_action_X[start_row * config.patches_per_frame:end_row * config.patches_per_frame, :end_row*config.patches_per_action_frame] = 1
 
-				self.maskarray_action_Y = torch.cat([action_maskarray, image_maskarray], axis = 1)
+				maskarray_action_Y = torch.cat([action_maskarray, image_maskarray], axis = 1)
 
-				self.maskarray = torch.cat([self.maskarray_action_X, self.maskimage], axis = 1)
-				self.maskarray = torch.cat([self.maskarray_action_Y, self.maskarray], axis = 0)
+				self.maskarray = torch.cat([maskarray_action_X, maskimage],      axis = 1)
+				self.maskarray = torch.cat([maskarray_action_Y, self.maskarray], axis = 0)
 
 				self.maskarray = self.maskarray.to(config.device)
 				self.maskarray = self.maskarray.type(torch.bool)
@@ -89,6 +90,7 @@ class CausalSelfAttention(nn.Module):
 				num_frames = config.num_frames
 				patches_per_frame = config.patches_per_frame
 				patches_per_tactile_frame = config.patches_per_tactile_frame
+				patches_per_action_frame = config.patches_per_action_frame
 
 				maskimage = torch.zeros(context_length * patches_per_frame, context_length * patches_per_frame)
 				for i in range(context_length):
@@ -105,10 +107,10 @@ class CausalSelfAttention(nn.Module):
 
 				# 3: image - action
 				# action_maskarray = torch.ones(context_length * patches_per_frame, num_frames)
-				action_maskarray = torch.zeros(context_length * patches_per_frame, context_length+1)
+				action_maskarray = torch.zeros(context_length * patches_per_frame, (context_length+1) * patches_per_action_frame)
 				for i in range(context_length):
 					start_row, end_row = i, (i + 2)
-					action_maskarray[start_row * patches_per_frame:end_row * patches_per_frame, :end_row] = 1
+					action_maskarray[start_row * patches_per_frame:end_row * patches_per_frame, :(end_row*patches_per_action_frame)] = 1
 
 				mask_array1 = torch.cat([action_maskarray, tactile_maskarray, image_maskarray], axis = 1)
 
@@ -128,37 +130,38 @@ class CausalSelfAttention(nn.Module):
 				tactile_maskarray = tactile_maskarray.type(torch.bool)
 
 				# 6. tactile queries - action keys
-				action_maskarray = torch.zeros(context_length * patches_per_tactile_frame, context_length + 1)
+				action_maskarray = torch.zeros(context_length * patches_per_tactile_frame, (context_length + 1) * patches_per_action_frame)
 				for i in range(context_length):
 					start_row, end_row = i, (i + 2)
-					action_maskarray[start_row * patches_per_tactile_frame:end_row * patches_per_tactile_frame, :end_row] = 1
+					action_maskarray[start_row * patches_per_tactile_frame:end_row * patches_per_tactile_frame, :(end_row*patches_per_action_frame)] = 1
 
 				mask_array2 = torch.cat([action_maskarray, tactile_maskarray, image_maskarray], axis = 1)
 
 				##### action queries
 				# 7 action - image
-				image_maskarray = torch.zeros(context_length+1, context_length * patches_per_frame)
+				image_maskarray = torch.zeros((context_length+1) * patches_per_action_frame, context_length * patches_per_frame)
 				for i in range(context_length+1):
 					start_row, end_row = i, (i + 1)
-					image_maskarray[start_row:end_row, :end_row * patches_per_frame] = 1
+					image_maskarray[start_row*patches_per_action_frame:end_row*patches_per_action_frame, :end_row * patches_per_frame] = 1
 				image_maskarray = image_maskarray.type(torch.bool)
 
 				# 8 action - tactile
-				tactile_maskarray = torch.zeros(context_length+1, context_length*patches_per_tactile_frame)
+				tactile_maskarray = torch.zeros((context_length+1) * patches_per_action_frame, context_length*patches_per_tactile_frame)
 				for i in range(context_length+1):
 					start_row, end_row = i, (i + 1)
-					tactile_maskarray[start_row:end_row, :end_row*patches_per_tactile_frame] = 1
+					tactile_maskarray[start_row*patches_per_action_frame:end_row*patches_per_action_frame, :end_row*patches_per_tactile_frame] = 1
 				tactile_maskarray = tactile_maskarray.type(torch.bool)
 
 				# 9 action - action
-				actionaction_maskarray = torch.zeros(context_length+1, context_length+1)
+				actionaction_maskarray = torch.zeros((context_length+1)*patches_per_action_frame, (context_length+1)*patches_per_action_frame)
 				for i in range(0, context_length+1):
 					start_row, end_row = i, (i + 2)
-					actionaction_maskarray[start_row:end_row, :end_row] = 1
+					actionaction_maskarray[start_row*patches_per_action_frame:end_row*patches_per_action_frame, :end_row*patches_per_action_frame] = 1
 
 				# 10 combine all the masks
 				mask_array3 = torch.cat([actionaction_maskarray, tactile_maskarray, image_maskarray], axis = 1)
 
+				# 11 combine all the masks 
 				self.maskarray = torch.cat([mask_array3, mask_array2, mask_array1], axis = 0)
 				self.maskarray = self.maskarray.to(config.device)
 				self.maskarray = self.maskarray.type(torch.bool)
@@ -176,17 +179,17 @@ class CausalSelfAttention(nn.Module):
 		y_gaps_labels = []
 
 		if self.config.action == True:
-			action_x_ticks = [(i) for i in range(0, self.config.context_length+1)]
-			action_y_ticks = [(i) for i in range(0, self.config.context_length+1)]
+			action_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], (x_ticks[-1] - x_ticks[-2] + ((self.config.context_length+1) * self.config.patches_per_action_frame)), self.config.patches_per_action_frame)]
+			action_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], (y_ticks[-1] - y_ticks[-2] + ((self.config.context_length+1) * self.config.patches_per_action_frame)), self.config.patches_per_action_frame)]
 			x_ticks += action_x_ticks
 			y_ticks += action_y_ticks
 
-			x_gaps_labels += [f'Robot State {i}' for i in range(1, len(action_x_ticks) + 1)]
-			y_gaps_labels += [f'Robot State {i}' for i in range(1, len(action_y_ticks) + 1)]
+			x_gaps_labels += [f'Robot State {i}' for i in range(1, self.config.context_length + 2)]
+			y_gaps_labels += [f'Robot State {i}' for i in range(1, self.config.context_length + 2)]
 
 		if self.config.tactile == True:
 			tactile_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], (x_ticks[-1] - x_ticks[-2] + ((self.config.context_length) * self.config.patches_per_tactile_frame)), self.config.patches_per_tactile_frame)]
-			tactile_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], (x_ticks[-1] - x_ticks[-2] + ((self.config.context_length) * self.config.patches_per_tactile_frame)), self.config.patches_per_tactile_frame)]
+			tactile_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], (y_ticks[-1] - y_ticks[-2] + ((self.config.context_length) * self.config.patches_per_tactile_frame)), self.config.patches_per_tactile_frame)]
 			x_ticks += tactile_x_ticks
 			y_ticks += tactile_y_ticks
 
@@ -195,7 +198,7 @@ class CausalSelfAttention(nn.Module):
 
 		if self.config.image == True:
 			image_x_ticks = [(i + x_ticks[-1]) for i in range(x_ticks[-1] - x_ticks[-2], x_ticks[-1] - x_ticks[-2] + ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
-			image_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], x_ticks[-1] - x_ticks[-2] + ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
+			image_y_ticks = [(i + y_ticks[-1]) for i in range(y_ticks[-1] - y_ticks[-2], y_ticks[-1] - y_ticks[-2] + ((self.config.context_length+1) * self.config.patches_per_frame), self.config.patches_per_frame)]
 			x_ticks += image_x_ticks
 			y_ticks += image_y_ticks
 
@@ -303,7 +306,7 @@ class VPGPT(nn.Module):
 			))
 
 		if config.action:
-			self.transformer.action_embedding  = nn.Linear(config.action_dim, config.n_embd)
+			self.transformer.action_embedding  = nn.Linear(int(config.action_dim / config.patches_per_action_frame), config.n_embd)
 
 		if config.tactile:
 			self.transformer.tactile_embedding = nn.Linear(int(config.tactile_dim / config.patches_per_tactile_frame), config.n_embd)
@@ -366,7 +369,11 @@ class VPGPT(nn.Module):
 			tok_emb = torch.cat((tactile_emb, tok_emb), 1)
 
 		if self.config.action:
+			# split the action data into patches then embed them
+			actions = actions.view(actions.shape[0], actions.shape[1], self.config.patches_per_action_frame, -1)  # shape (b, t,  num_patches, action features / num_patches)
 			action_emb = self.transformer.action_embedding(actions)
+			action_emb = action_emb.view(actions.shape[0], actions.shape[1] * self.config.patches_per_action_frame, -1)  # shape (b, t * num_patches, n_embd)
+
 			tok_emb = torch.cat((action_emb, tok_emb), 1)
 
 		n, t, c = tok_emb.shape
@@ -381,11 +388,11 @@ class VPGPT(nn.Module):
 		x = self.transformer.ln_f(x)
 
 		if self.config.action and not self.config.tactile:
-			action, x = torch.split(x, [self.config.context_length+1, self.config.context_length * self.config.patches_per_frame], dim=1)
+			action, x = torch.split(x, [(self.config.context_length+1) * self.config.patches_per_action_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
 		elif self.config.tactile and not self.config.action:
 			x_tactile, x  = torch.split(x, [self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
 		elif self.config.tactile and self.config.action:
-			action, x_tactile, x = torch.split(x, [self.config.context_length + 1, self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
+			action, x_tactile, x = torch.split(x, [(self.config.context_length+1) * self.config.patches_per_action_frame, self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
 
 		x = x.view(-1, self.config.context_length, int(x.shape[1] / self.config.context_length), x.shape[2])  # input  shape = [bs, t*num_patch, enc_dim] || output shape = [bs, t, num_patch, enc_dim]
 		if self.config.action:	x = x.reshape(-1, x.shape[2], x.shape[3])  									  # output shape = [bs*t, num_patch, enc_dim]	

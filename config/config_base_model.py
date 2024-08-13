@@ -5,9 +5,9 @@ class model_config_builder_transformer():
         if config.image == True and config.action == False and config.tactile == False:
             self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length)
         if config.image == True and config.action == True and config.tactile == False:
-            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + (config.context_length + 1)
+            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + ((config.context_length + 1)* config.patches_per_action_frame)
         if config.image == True and config.action == True and config.tactile == True:
-            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + (config.context_length + 1) + (config.context_length*config.patches_per_tactile_frame)
+            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + ((config.context_length + 1)* config.patches_per_action_frame) + (config.context_length*config.patches_per_tactile_frame)
 
         self.n_layer = config.num_encoder_layers
         self.n_head = config.num_heads
@@ -43,6 +43,7 @@ class model_config_builder_transformer():
         self.load_pretrained_image_decoder   = config.load_pretrained_image_decoder
         self.freeze_image_decoder            = config.freeze_image_decoder
         self.patches_per_tactile_frame       = config.patches_per_tactile_frame
+        self.patches_per_action_frame        = config.patches_per_action_frame
 
 class model_config_builder_svg():
     def __init__(self, config):
@@ -189,6 +190,12 @@ class Config:
         self.action_dim 	           = 6
         self.tactile_dim 	           = 48
         self.patches_per_tactile_frame = 16  # 1 means no patches, 
+        self.patches_per_action_frame  = 6   # 1 means no patches, 
+
+        assert self.action_dim   % self.patches_per_action_frame  == 0
+        assert self.tactile_dim  % self.patches_per_tactile_frame == 0
+        assert self.image_height % self.transformer_input_height  == 0
+        assert self.image_width  % self.transformer_input_width   == 0
 
         self.enc_dim 	  	    = 768
         self.num_heads 	  	    = 12

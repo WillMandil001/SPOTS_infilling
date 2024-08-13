@@ -69,7 +69,7 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
     else:
         sample_rate = 1
 
-    if config.infill_patches:
+    if config.test_infill:
         fig = plt.figure(figsize=(config.prediction_horizon * 0.25, 5))
         gs = GridSpec(3, 20, figure=fig)
     else:
@@ -78,19 +78,19 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
 
     index = 0
     for j in range(sample_rate - 1, config.prediction_horizon, sample_rate):
-        if config.infill_patches: ax = fig.add_subplot(gs[1, index])
+        if config.test_infill: ax = fig.add_subplot(gs[1, index])
         else:                     ax = fig.add_subplot(gs[0, index])
         ax.imshow(ground_truth[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
         ax.axis('off')
         ax.set_title(f"GT {j + 1}")
-        if config.infill_patches: ax = fig.add_subplot(gs[2, index])
+        if config.test_infill: ax = fig.add_subplot(gs[2, index])
         else:                     ax = fig.add_subplot(gs[1, index])
         ax.imshow(predicted_frames[j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
         ax.axis('off')
         ax.set_title(f"Pred {j + 1}")
         index += 1
 
-    if config.infill_patches:
+    if config.test_infill:
         for j in range(input_frames.shape[1]):
             ax = fig.add_subplot(gs[0, j])
             ax.imshow(input_frames[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
@@ -102,10 +102,15 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
     wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 
-def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, step, step_name):        # we want to plot each of the 16 features in a 4x4 grid over the ts frames:
+def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, tactile_context, config, step, step_name):        # we want to plot each of the 16 features in a 4x4 grid over the ts frames:
     fig, axes = plt.subplots(4, 4, figsize=(12, 12))
 
     if len(predicted_frames_tactile.shape) > 2: predicted_frames_tactile = predicted_frames_tactile.squeeze()
+
+    # we want to add the tactile context onto the front of the ground truth and add the same length of non vaules to the predicted frames
+    ground_truth_tactile = torch.cat([tactile_context, ground_truth_tactile], dim=1)
+    filler = torch.fill(ground_truth_tactile[:, :tactile_context.shape[1]], float('nan')).squeeze(0)
+    predicted_frames_tactile = torch.cat([filler, predicted_frames_tactile], dim=0)
 
     x_pred = predicted_frames_tactile[:, :16].cpu().numpy()
     x_gt = ground_truth_tactile[0][:, :16].cpu().numpy()
@@ -126,7 +131,7 @@ def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, config, s
         ax.set_xticks(range(0, config.prediction_horizon, 2))
         ax.set_title(f"Feature {i}")
         # set x ticks every 10 points
-        ax.set_xticks(range(0, config.prediction_horizon, 5))
+        ax.set_xticks(range(0, predicted_frames_tactile.shape[0], 10))
 
     fig.legend(["x gt", "x pred", "y gt", "y pred", "z gt", "z pred"], loc='lower center', ncol=3)
     plt.tight_layout()
@@ -210,7 +215,7 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
         if config.image:
             image_context = batch[1][:, :config.context_length, ...].to(config.device)    # take all but the last image          shape = [bs, c, 64, 64, 3])
             image_predict = batch[1][:,  config.context_length:, ...].to(config.device)   # take just the last image             shape = [bs, p,     64, 64, 3])
-            if config.infill_patches:
+            if config.test_infill:
                 if repeatable_infill:
                     x = config.repeatable_infil_x_pos
                     y = config.repeatable_infil_y_pos
@@ -220,6 +225,10 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
                     x = np.random.randint(0, config.image_height - infill_patch_size)
                     y = np.random.randint(0, config.image_width  - infill_patch_size)
                 image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
+            if config.test_tactile_infill:
+                num_taxels_to_infill = np.random.randint(config.min_infill_taxels, config.max_infill_taxels)
+                infill_taxels = np.random.randint(0, config.tactile_dim, num_taxels_to_infill)
+                tactile_context[:, :, infill_taxels] = 0.0
         if config.action:
             robot_data    = batch[0].to(config.device)                                          # take the full sequence of robot data shape = [bs, c+p,   6])       
         if config.tactile:
@@ -229,7 +238,7 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
         if config.image:
             image_context = batch[1][:, :-1, ...].to(config.device)    # take all but the last image          shape = [bs, c+p-1, 64, 64, 3])
             image_predict = batch[1][:,  1:, ...].to(config.device)    # take just the last image             shape = [bs, 1,     64, 64, 3])
-            if config.infill_patches:
+            if config.train_infill:
                 if repeatable_infill:
                     x = config.repeatable_infil_x_pos
                     y = config.repeatable_infil_y_pos
@@ -239,6 +248,11 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
                     x = np.random.randint(0, config.image_height - infill_patch_size)
                     y = np.random.randint(0, config.image_width  - infill_patch_size)
                 image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
+            if config.train_tactile_infill:
+                num_taxels_to_infill = np.random.randint(config.min_infill_taxels, config.max_infill_taxels)
+                infill_taxels = np.random.randint(0, config.tactile_dim, num_taxels_to_infill)
+                tactile_context[:, :, infill_taxels] = 0.0
+
         if config.action:
             robot_data    = batch[0].to(config.device)                   # take the full sequence of robot data shape = [bs, c+p,   6])
         if config.tactile:
@@ -249,10 +263,10 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
     if horizon_rollout:
         (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
         loss_sequence_image, loss_sequence_tactile, loss_sequence_combined) = rollout_sequence(image_context, image_predict, robot_data, tactile_context, tactile_predict, config, model, criterion) # TODO: add tactile data
-        return rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context
+        return rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context, tactile_context
     else:
         with timer("train"): pred_image, pred_tactile, total_loss, loss, tactile_loss = model(image_context, targets=image_predict, actions=robot_data, tactiles=tactile_context, tactile_targets=tactile_predict, test=eval)        # forward pass
-        return pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context
+        return pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context, tactile_context
 
 
 def rollout_sequence(image_context, image_groundtruth, robot_data, tactile_context, tactile_groundtruth, config, model, criterion):

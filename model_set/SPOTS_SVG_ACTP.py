@@ -203,8 +203,6 @@ class Model(nn.Module):
                 outputs_scene = [x_pred_scene]
                 outputs_tactile = [x_pred_tactile]
 
-
-
         if test is False:
             loss_scene = mae_scene + (kld_scene * self.features.beta)
             loss_tactile = mae_tactile + (kld_tactile * self.features.beta)

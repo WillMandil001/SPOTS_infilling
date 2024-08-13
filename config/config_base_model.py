@@ -82,7 +82,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = True
+        self.debug             = False
         self.cluster           = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False
@@ -150,7 +150,8 @@ class Config:
         ###########################
         # Infilling parameters
         ###########################
-        self.infill_patches         = True
+        self.train_infill         = False
+        self.test_infill          = False
         self.min_infill_patch_size  = 1
         self.max_infill_patch_size  = 32
 
@@ -158,13 +159,18 @@ class Config:
         self.repeatable_infil_x_pos      = 15
         self.repeatable_infil_patch_size = 25
 
+        self.train_tactile_infill = False
+        self.test_tactile_infill  = False
+        self.min_infill_taxels  = 1
+        self.max_infill_taxels  = 16  # max 48?
+
         ###########################
         # optimizer parameters
         ###########################
         self.criterion = "MAE"
 
-        self.beta1 	       = 0.9 
-        self.beta2 	       = 0.99 
+        self.beta1 	       = 0.9
+        self.beta2 	       = 0.99
         self.weight_decay  = 1e-4 
         self.learning_rate = 0.001
 

@@ -30,10 +30,11 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-flags.DEFINE_string ('model_name',               "AC-VGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
-flags.DEFINE_boolean('infill',                   False,          'Whether to infill or not')
+flags.DEFINE_boolean('train_infill',             True,          'Whether to infill or not')
+flags.DEFINE_boolean('test_infill',              False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags
@@ -236,13 +237,16 @@ def main(argv):
     if FLAGS.model_type != '':  config.model_type = FLAGS.model_type
     if FLAGS.cluster:          config.cluster = True
 
-    config.infill_patches  = FLAGS.infill
-    if config.infill_patches: config.model_name += " -infill"
+    if FLAGS.train_infill:    config.train_infill   = FLAGS.train_infill
+    if FLAGS.test_infill:     config.test_infill    = FLAGS.test_infill
+    if config.train_infill: config.model_name += "-trn inf"
+    if config.test_infill:  config.model_name += "-tst inf"
 
     if FLAGS.use_all_tactile_samples: 
         config.use_all_tactile_samples = True
         config.tactile_dim = config.tactile_dim * config.sample_rate
         config.tactile_size = config.tactile_dim
+        assert config.tactile_dim % config.patches_per_tactile_frame == 0
 
     config.test_version    = FLAGS.test_version
     config.experiment_name = FLAGS.test_version + " - " + config.model_name
@@ -314,7 +318,7 @@ def main(argv):
     # Define the training functions
     ###########################
     def train_step_transformer(batch, config, model, criterion, timer):
-        pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
+        pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context, tactile_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
         scaler.scale(total_loss).backward()
         scaler.step(optimizer)
         scaler.update()
@@ -327,7 +331,7 @@ def main(argv):
         return update_info
 
     def train_step_svg(batch, config, model, criterion, timer):
-        pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
+        pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context, tactile_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False)
         update_info = {"grad_norm": torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0),
                        "lr": model.prior_optimizer.param_groups[0]['lr'],
                        "loss": total_loss.item()}
@@ -341,7 +345,7 @@ def main(argv):
         with torch.no_grad():
             model.eval()
             for i, batch in enumerate(val_dataloader):
-                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False, repeatable_infill=True, eval=True)
+                pred_image, image_predict, pred_tactile, tactile_predict, total_loss, loss, tactile_loss, image_context, tactile_context = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=False, repeatable_infill=True, eval=True)
                 val_metrics["validation_loss"] = val_metrics.get("loss", 0) + total_loss.item()
                 if config.tactile:  val_metrics["Validation: tactile loss"] = val_metrics.get("tactile_loss", 0) + tactile_loss.item()
                 if config.image:    val_metrics["Validation: image loss"] = val_metrics.get("image_loss", 0) + loss.item()
@@ -351,23 +355,20 @@ def main(argv):
     def viz_step(step, config, model, criterion, viz_dataloader, timer):
         with torch.no_grad():
             model.eval()
-            input_frames = []
             combined_losses, image_loss_list, tactile_loss_list = [], [], []
             loss_sequences_image, loss_sequences_tactile, loss_sequences_combined = [], [], []
             for i, batch in enumerate(viz_dataloader):
                 if i not in config.viz_steps:  continue
                 (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
-                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True)
+                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context, tactile_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True)
                 if config.image:
-                    if config.infill_patches:
-                        input_frames = batch[1][:, :config.context_length, :, :, :]
                     train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
                     image_loss_list.append(image_losses.item())
                     loss_sequences_image.append(loss_sequence_image)
                     combined_losses.append(combined_total_loss.item())
                     loss_sequences_combined.append(loss_sequence_combined)
                 if config.tactile:
-                    train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, config, step, step_name=i)
+                    train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
                     tactile_loss_list.append(tactile_losses.item())
                     loss_sequences_tactile.append(loss_sequence_tactile)
 

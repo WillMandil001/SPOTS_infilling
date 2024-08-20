@@ -204,6 +204,19 @@ def viz_tactile_histogram(tactile_data):
     wandb.log({"tactile_histogram": wandb.Image(plt)}, step=0)
     plt.close()
 
+def viz_robot_state_histogram(robot_state_data):
+    name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(1, len(name), figsize=(12, 12))
+    for i in range(len(name)):
+        ax[i].hist(robot_state_data[:, i].flatten(), bins=200)
+        ax[i].set_title(f"{name[i]}")
+        ax[i].set_xlabel("angle/distance")
+        ax[i].set_ylabel("Frequency")
+    plt.tight_layout()
+    wandb.log({"robot_state_histogram": wandb.Image(plt)}, step=0)
+    plt.close()
+
 ###########################
 #
 # Training and Validation functions

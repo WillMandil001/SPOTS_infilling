@@ -94,7 +94,9 @@ class VisionTactileDataset(Dataset):
                 if self.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
                 if self.config.tactile:
                     if self.config.use_all_tactile_samples == False:
-                         tactile_data.append(step_data[2].flatten())
+                        tactile_sample_sequence = step_data[2].flatten()
+                        tactile_sample_sequence = step_data[2].t().flatten()
+                        tactile_data.append(tactile_sample_sequence)
                     else:
                         tactile_sample_sequence = []
                         for j in range(self.config.sample_rate):
@@ -106,7 +108,7 @@ class VisionTactileDataset(Dataset):
             robot_state, image_data, tactile_data  = [], [], []
             for save_name in steps:
                 step_data = np.load(save_name, allow_pickle=True)
-                if self.config.action:      robot_state.append(step_data[()]["state"].astype(np.float32) / 255)
+                if self.config.action:      robot_state.append(step_data[()]["state"].astype(np.float32))
                 if self.config.image:       image_data.append(step_data[()]['image'].astype(np.float32) / 255)
                 if self.config.tactile:     tactile_data.append(step_data[()]['tactile'].astype(np.float32))
 
@@ -114,7 +116,8 @@ class VisionTactileDataset(Dataset):
         if self.config.image:    image_data   = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
         if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
 
-        # train_utils.validate_action_space(robot_state, self.config)
+        # cut the action data to the size of action_dim
+        if self.config.action:  robot_state = robot_state[:, :, :self.config.action_dim]
 
         return torch.tensor(robot_state), torch.tensor(image_data) , torch.tensor(tactile_data)
 
@@ -179,7 +182,20 @@ class VisionTactileDataset(Dataset):
             self.robot_state_scaler.fit(robot_state_data)
             robot_state_data      = self.robot_state_scaler.transform(robot_state_data)
 
+            train_utils.viz_robot_state_histogram(robot_state_data)
             train_utils.viz_tactile_histogram(tactile_data)
+
+            name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(1, len(name), figsize=(12, 12))
+            for i in range(len(name)):
+                ax[i].hist(robot_state_data[:, i].flatten(), bins=200)
+                ax[i].set_title(f"{name[i]}")
+                ax[i].set_xlabel("angle/distance")
+                ax[i].set_ylabel("Frequency")
+            plt.tight_layout()
+            # save
+            plt.savefig("robot_state_histogram.png")
 
             for i in range(len(self.data)):
                 self.data[i][2] = tactile_data[i]

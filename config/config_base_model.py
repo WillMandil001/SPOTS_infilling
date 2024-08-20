@@ -82,7 +82,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = False
+        self.debug             = True
         self.cluster           = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False

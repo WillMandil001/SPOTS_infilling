@@ -205,12 +205,11 @@ def viz_tactile_histogram(tactile_data):
     plt.close()
 
 def viz_robot_state_histogram(robot_state_data):
-    name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(1, len(name), figsize=(12, 12))
-    for i in range(len(name)):
+    fig, ax = plt.subplots(1, robot_state_data.shape[1], figsize=(12, 12))
+    for i in range(robot_state_data.shape[1]):
         ax[i].hist(robot_state_data[:, i].flatten(), bins=200)
-        ax[i].set_title(f"{name[i]}")
+        ax[i].set_title(f"{[i]}")
         ax[i].set_xlabel("angle/distance")
         ax[i].set_ylabel("Frequency")
     plt.tight_layout()

@@ -30,13 +30,15 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
-flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
+flags.DEFINE_string ('model_name',               "SVG-ACTP",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
+# flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+# flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('train_infill',             False,          'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              False,          'Whether to infill or not')
-flags.DEFINE_boolean('train_tactile_infill',     True,          'Whether to infill or not')
-flags.DEFINE_boolean('test_tactile_infill',      True,          'Whether to infill or not')
+flags.DEFINE_boolean('train_tactile_infill',     False,          'Whether to infill or not')
+flags.DEFINE_boolean('test_tactile_infill',      False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags
@@ -95,7 +97,7 @@ class VisionTactileDataset(Dataset):
                 if self.config.tactile:
                     if self.config.use_all_tactile_samples == False:
                         tactile_sample_sequence = step_data[2].flatten()
-                        tactile_sample_sequence = step_data[2].t().flatten()
+                        # tactile_sample_sequence = step_data[2].t().flatten()
                         tactile_data.append(tactile_sample_sequence)
                     else:
                         tactile_sample_sequence = []
@@ -117,7 +119,7 @@ class VisionTactileDataset(Dataset):
         if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
 
         # cut the action data to the size of action_dim
-        if self.config.action:  robot_state = robot_state[:, :, :self.config.action_dim]
+        if self.config.action:  robot_state = robot_state[:, :self.config.action_dim]
 
         return torch.tensor(robot_state), torch.tensor(image_data) , torch.tensor(tactile_data)
 
@@ -182,7 +184,7 @@ class VisionTactileDataset(Dataset):
             self.robot_state_scaler.fit(robot_state_data)
             robot_state_data      = self.robot_state_scaler.transform(robot_state_data)
 
-            train_utils.viz_robot_state_histogram(robot_state_data)
+            # train_utils.viz_robot_state_histogram(robot_state_data)
             train_utils.viz_tactile_histogram(tactile_data)
 
             name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]

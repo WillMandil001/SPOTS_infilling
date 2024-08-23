@@ -34,14 +34,14 @@ class Model(nn.Module):
             self.criterion_tactile = nn.MSELoss().to(self.features.device)
 
     def load_model(self, full_model):
-        self.frame_predictor_tactile = full_model["frame_predictor_tactile"].to(self.features["device"])
-        self.frame_predictor_scene = full_model["frame_predictor_scene"].to(self.features["device"])
-        self.posterior = full_model["posterior"].to(self.features["device"])
-        self.prior = full_model["prior"].to(self.features["device"])
-        self.encoder_scene = full_model["encoder_scene"].to(self.features["device"])
-        self.decoder_scene = full_model["decoder_scene"].to(self.features["device"])
-        self.MMFM_scene = full_model["MMFM_scene"].to(self.features["device"])
-        self.MMFM_tactile = full_model["MMFM_tactile"].to(self.features["device"])
+        self.frame_predictor_tactile = full_model["frame_predictor_tactile"].to(self.features.device)
+        self.frame_predictor_scene = full_model["frame_predictor_scene"].to(self.features.device)
+        self.posterior = full_model["posterior"].to(self.features.device)
+        self.prior = full_model["prior"].to(self.features.device)
+        self.encoder_scene = full_model["encoder_scene"].to(self.features.device)
+        self.decoder_scene = full_model["decoder_scene"].to(self.features.device)
+        self.MMFM_scene = full_model["MMFM_scene"].to(self.features.device)
+        self.MMFM_tactile = full_model["MMFM_tactile"].to(self.features.device)
 
     def initialise_model(self):
         import model_set.dcgan_64 as model

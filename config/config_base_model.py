@@ -82,7 +82,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = True
+        self.debug             = False
         self.cluster           = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False
@@ -128,7 +128,7 @@ class Config:
 
         self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
-        self.num_frames 	      = 10 + 1     # just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
+        self.num_frames 	      = 20     # IF transformers: just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
         self.context_length       = 10
         self.prediction_horizon   = 100    # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 
@@ -167,7 +167,7 @@ class Config:
         ###########################
         # optimizer parameters
         ###########################
-        self.criterion = "MAE"
+        self.criterion = "MSE"
 
         self.beta1 	       = 0.9
         self.beta2 	       = 0.99
@@ -196,7 +196,7 @@ class Config:
         self.action_dim 	           = 6
         self.tactile_dim 	           = 48
         self.patches_per_tactile_frame = 16  # 1 means no patches, 
-        self.patches_per_action_frame  = 6   # 1 means no patches, 
+        self.patches_per_action_frame  = 6 # 1 means no patches, 
 
         assert self.action_dim   % self.patches_per_action_frame  == 0
         assert self.tactile_dim  % self.patches_per_tactile_frame == 0

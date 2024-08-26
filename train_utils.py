@@ -68,13 +68,13 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
         sample_rate = config.prediction_horizon // 20
     else:
         sample_rate = 1
+    
+    if config.dataset_to_use == "robot_pushing_edge_case": fig = plt.figure(figsize=(config.prediction_horizon * 2, 5))
+    elif config.dataset_to_use == "robot_pushing":         fig = plt.figure(figsize=(config.prediction_horizon * 0.25, 5))
 
-    if config.test_infill:
-        fig = plt.figure(figsize=(config.prediction_horizon * 0.25, 5))
-        gs = GridSpec(3, 20, figure=fig)
-    else:
-        fig = plt.figure(figsize=(config.prediction_horizon * 0.25, 5))
-        gs = GridSpec(2, 20, figure=fig)
+    num_images_per_row = min(config.prediction_horizon, 20)
+    if config.test_infill: gs = GridSpec(3, num_images_per_row, figure=fig)
+    else:                  gs = GridSpec(2, num_images_per_row, figure=fig)
 
     index = 0
     for j in range(sample_rate - 1, config.prediction_horizon, sample_rate):
@@ -99,6 +99,9 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
 
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
+    plt.savefig("temp1.png")
+    plt.close()
+
     wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 

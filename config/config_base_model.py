@@ -88,22 +88,26 @@ class Config:
         self.preload_data_gpu  = False
         self.model_type        = ""
 
-        if self.cluster == False:
+        self.dataset_to_use = "robot_pushing_edge_case"  # robot_pushing, robot_pushing_edge_case
+
+        if self.cluster == False:                
             self.dataset_name      = "robot_grasping_dataset"
-            self.dataset_train_dir = "/home/wmandil/robotics/datasets/robot_pushing/train/formatted_dataset/"
-            self.dataset_val_dir   = "/home/wmandil/robotics/datasets/robot_pushing/val/formatted_dataset/"
+            self.dataset_train_dir = "/home/wmandil/robotics/datasets/{}/train/formatted_dataset/".format(self.dataset_to_use)
+            self.dataset_val_dir   = "/home/wmandil/robotics/datasets/{}/val/formatted_dataset/".format(self.dataset_to_use)
+            self.dataset_test_dir  = "/home/wmandil/robotics/datasets/{}/test/formatted_dataset/".format(self.dataset_to_use)
             self.save_dir          = "/home/wmandil/robotics/saved_models/"
 
             # if you moved the dataset post formatting, you can use the following to replace the old path with the new one
             self.to_replace   = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
-            self.replace_with = "/home/wmandil/robotics/datasets/robot_pushing/"
+            self.replace_with = "/home/wmandil/robotics/datasets/{}/".format(self.dataset_to_use)
 
         if self.cluster:
-            self.dataset_train_dir = "/shared/home/wmandil/datasets/robot_pushing/train/formatted_dataset/"
-            self.dataset_val_dir   = "/shared/home/wmandil/datasets/robot_pushing/val/formatted_dataset/"
+            self.dataset_train_dir = "/shared/home/wmandil/datasets/{}/train/formatted_dataset/".format(self.dataset_to_use)
+            self.dataset_val_dir   = "/shared/home/wmandil/datasets/{}/val/formatted_dataset/".format(self.dataset_to_use)
+            self.dataset_test_dir  = "/shared/home/wmandil/datasets/{}/test/formatted_dataset/".format(self.dataset_to_use)
             self.save_dir          = "/shared/home/wmandil/saved_models/"
             self.to_replace        = "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/"
-            self.replace_with      = "/shared/home/wmandil/datasets/robot_pushing/"
+            self.replace_with      = "/shared/home/wmandil/datasets/{}/".format(self.dataset_to_use)
 
         self.model_name      = "AC-VTGPT-infill"  # VPGPT, AC-VGPT, AC-VTGPT
         self.test_version    = "v3"
@@ -124,13 +128,13 @@ class Config:
         self.save_interval   = 10_000
         self.log_interval    = 100
         if self.debug: self.eval_interval   = 10
-        else:          self.eval_interval   = 500 # 500
+        else:          self.eval_interval   = 10  # 500
 
-        self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
+        self.sample_rate = 1                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
-        self.num_frames 	      = 20     # IF transformers: just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
-        self.context_length       = 10
-        self.prediction_horizon   = 100    # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
+        self.num_frames 	      = 5+1     # IF transformers: just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
+        self.context_length       = 5
+        self.prediction_horizon   = 15    # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 
         self.num_workers = 4
         self.device = "cuda"
@@ -145,7 +149,8 @@ class Config:
         self.shuffle_buffer_size     = 1000
         self.val_shuffle_buffer_size = 1000
 
-        self.viz_steps = [1, 200, 800, 1050, 1350]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        if self.dataset_to_use == "robot_pushing":           self.viz_steps = [1, 200, 800, 1050, 1350]      # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        if self.dataset_to_use == "robot_pushing_edge_case": self.viz_steps = [0,3,6,9, 12,15,18,21, 24,27,30,33, 36,39,42,45]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
 
         ###########################
         # Infilling parameters

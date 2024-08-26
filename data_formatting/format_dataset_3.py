@@ -15,8 +15,14 @@ def create_rlds_dataset(folders, data_location):
 
         print("-------- ", folder, " --------")
         try:
-            robot_state = np.array(pd.read_csv(data_location + folder + '/robot_state.csv', header=None))[1:]
-            xela_sensor = np.array(pd.read_csv(data_location + folder + '/xela_sensor1.csv', header=None))[1:]
+            # for controlled test dataset
+            # robot_state = np.array(pd.read_csv(data_location + folder + '/robot_state.csv', header=None))[1:]
+            # xela_sensor = np.array(pd.read_csv(data_location + folder + '/xela_sensor1.csv', header=None))[1:]
+            # image_data  = np.array(np.load(data_location + folder + '/color_images.npy'))
+
+            # for the original marked_object dataset
+            robot_state = np.array(pd.read_csv(data_location + folder + '/robot_states.csv', header=None))[1:]
+            xela_sensor = np.array(np.load(data_location + folder + '/tactile_states.npy'))
             image_data  = np.array(np.load(data_location + folder + '/color_images.npy'))
         except:
             print("Error loading data from folder: ", folder)
@@ -57,7 +63,7 @@ def create_rlds_dataset(folders, data_location):
                 'action':  action.astype(np.float32),
                 'language_instruction': "None"
             }
-            
+
             episode_list.append(step)
             step_save_dir = dir + "step_" + str(i) + ".npy"
             np.save(step_save_dir, np.array(step))
@@ -76,9 +82,9 @@ def create_rlds_dataset(folders, data_location):
 
         np.save(data_location + "formatted_dataset/map.npy", map)
 
-dataset_dirs = ["/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/train/",
-                "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/val/",
-                "/media/wmandil/Data/Robotics/Data_sets/single_object_velocity_controlled_dataset/single_object_velocity_controlled_dataset/test/"]
+dataset_dirs = ["/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/train/",
+                "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/val/",
+                "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/test_examples/"]
 
 for dataset_dir in dataset_dirs:
     create_rlds_dataset(folders=os.listdir(dataset_dir),  data_location=dataset_dir)

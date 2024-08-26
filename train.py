@@ -30,10 +30,10 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-flags.DEFINE_string ('model_name',               "SVG-ACTP",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
-flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
-# flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
-# flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
+# flags.DEFINE_string ('model_name',               "SVG-ACTP",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+# flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
+flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('train_infill',             False,          'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              False,          'Whether to infill or not')
@@ -97,7 +97,6 @@ class VisionTactileDataset(Dataset):
                 if self.config.tactile:
                     if self.config.use_all_tactile_samples == False:
                         tactile_sample_sequence = step_data[2].flatten()
-                        # tactile_sample_sequence = step_data[2].t().flatten()
                         tactile_data.append(tactile_sample_sequence)
                     else:
                         tactile_sample_sequence = []
@@ -106,6 +105,7 @@ class VisionTactileDataset(Dataset):
                             tactile_sample_sequence.append(step_data[2].flatten())
                         tactile_data.append(np.concatenate(tactile_sample_sequence, axis=0))
         else:
+            # needs updating
             steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
             robot_state, image_data, tactile_data  = [], [], []
             for save_name in steps:
@@ -304,6 +304,9 @@ def main(argv):
     viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
     viz_dataloader = DataLoader(viz_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
+    test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_test_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
+
     ###########################
     # Load the model and optimizer
     ###########################
@@ -441,8 +444,11 @@ def main(argv):
                     with timer("val"):        
                         val_update_info = val_step(step, config, model, criterion, val_dataloader, timer)
                         train_utils.wandb_log(val_update_info, step=step)
-                    with timer("visualize"):  
-                        viz_update_info = viz_step(step, config, model, criterion, viz_dataloader, timer)
+                    # with timer("visualize"):
+                    #     viz_update_info = viz_step(step, config, model, criterion, viz_dataloader, timer)
+                    #     train_utils.wandb_log(viz_update_info, step=step)
+                    with timer("test"):  
+                        viz_update_info = viz_step(step, config, model, criterion, test_dataloader, timer)
                         train_utils.wandb_log(viz_update_info, step=step)
                     model.train()
 

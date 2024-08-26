@@ -128,7 +128,7 @@ class Config:
         self.save_interval   = 10_000
         self.log_interval    = 100
         if self.debug: self.eval_interval   = 10
-        else:          self.eval_interval   = 10  # 500
+        else:          self.eval_interval   = 500
 
         self.sample_rate = 1                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 

@@ -7,20 +7,12 @@ import numpy as np
 import torch.nn as nn
 
 # training utilities
-import train_utils
-from config.config_base_model import Config, model_config_builder_transformer, model_config_builder_actp, model_config_builder_svg
+import train_utils_gelsight as train_utils
 
-# # models
-# from model_set.transformer import VPGPT
-# from model_set.SPOTS_SVG_ACTP_SOP import Model as SPOTS_SVG_ACTP_SOP
-# from model_set.SPOTS_SVG_ACTP import Model as SPOTS_SVG_ACTP
-# from model_set.SVG import Model as SVG
+from config.config_base_model_gelsight import Config, model_config_builder_transformer, model_config_builder_actp, model_config_builder_svg
 
 # models
 from model_set_gel_sight.transformer import VPGPT
-# from model_set_gel_sight.SPOTS_SVG_ACTP_SOP import Model as SPOTS_SVG_ACTP_SOP
-# from model_set_gel_sight.SPOTS_SVG_ACTP import Model as SPOTS_SVG_ACTP
-# from model_set_gel_sight.SVG import Model as SVG
 
 # data loading and processing
 from tqdm import tqdm
@@ -38,7 +30,7 @@ FLAGS = flags.FLAGS
 # experiment / run flags
 # flags.DEFINE_string ('model_name',               "SVG-ACTP",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 # flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
-flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_name',               "VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('train_infill',             False,          'Whether to infill or not')
@@ -70,7 +62,7 @@ flags.DEFINE_string ('pretrained_config_path',  "/home/wmandil/robotics/SPOTS_in
 # Build the dataset and dataloader
 ###########################
 class VisionTactileDataset(Dataset):
-    def __init__(self, config, map_file, context_len, prediction_horizon, train=True, validate=False, wandb_id= ""):
+    def __init__(self, config, map_file, context_len, prediction_horizon, train=True, validate=False, wandb_id= "", test=False):
         self.config = config
         self.train = train
         self.map_file = map_file
@@ -87,47 +79,31 @@ class VisionTactileDataset(Dataset):
         if config.debug:
             self.map_data = self.map_data[:10]
 
+    # ####### DELETE THIS LATER!!!!
+    #     if train == True:
+    #         self.map_data = self.map_data[:400]
+    #     elif train == False and test == False: 
+    #         self.map_data = self.map_data[600:610]
+    #     if test == True:
+    #         self.map_data = self.map_data[600:610]
+
         self.build_dataset()
 
     def __len__(self):
         return self.total_sequences
 
     def __getitem__(self, idx):
-        if self.config.pre_load_data:
-            start_index = self.sample_index_list[idx]
-            robot_state, image_data, tactile_data = [], [], []
-            for i in range(0, (self.context_len + self.prediction_horizon)*self.config.sample_rate, self.config.sample_rate):
-                step_data = self.data[start_index + i]
-                if self.config.action:      robot_state.append(step_data[0])
-                if self.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
-                if self.config.tactile:
-                    if self.config.use_all_tactile_samples == False:
-                        tactile_sample_sequence = step_data[2].flatten()
-                        tactile_data.append(tactile_sample_sequence)
-                    else:
-                        tactile_sample_sequence = []
-                        for j in range(self.config.sample_rate):
-                            step_data = self.data[i + j]
-                            tactile_sample_sequence.append(step_data[2].flatten())
-                        tactile_data.append(np.concatenate(tactile_sample_sequence, axis=0))
-        else:
-            # needs updating
-            steps = self.sequences[idx:idx + self.context_len + self.prediction_horizon]  # TODO wont work with sample_rate!
-            robot_state, image_data, tactile_data  = [], [], []
-            for save_name in steps:
-                step_data = np.load(save_name, allow_pickle=True)
-                if self.config.action:      robot_state.append(step_data[()]["state"].astype(np.float32))
-                if self.config.image:       image_data.append(step_data[()]['image'].astype(np.float32) / 255)
-                if self.config.tactile:     tactile_data.append(step_data[()]['tactile'].astype(np.float32))
+        start_index = self.sample_index_list[idx]
+        image_data, tactile_data = [], []
+        for i in range(0, (self.context_len + self.prediction_horizon)*self.config.sample_rate, self.config.sample_rate):
+            step_data = self.data[start_index + i]
+            if self.config.image:       image_data.append(step_data[0].astype(np.float32) / 255)
+            if self.config.tactile:     tactile_data.append(step_data[1].astype(np.float32) / 255)
 
-        if self.config.action:   robot_state  = np.stack(robot_state, axis=0)    # shape is robot=[c+p, bs, 6]
         if self.config.image:    image_data   = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
         if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
 
-        # cut the action data to the size of action_dim
-        if self.config.action:  robot_state = robot_state[:, :self.config.action_dim]
-
-        return torch.tensor(robot_state), torch.tensor(image_data) , torch.tensor(tactile_data)
+        return torch.tensor([]), torch.tensor(image_data) , torch.tensor(tactile_data)
 
     def build_dataset(self):
         self.total_sequences = 0
@@ -146,76 +122,13 @@ class VisionTactileDataset(Dataset):
             for episode in tqdm(self.map_data, desc="Loading data", dynamic_ncols=True):
                 episode_length = episode['episode_length']
                 for step_num, save_name in enumerate(episode['step_save_name_list']):
-                    save_name = save_name.replace(self.config.to_replace, self.config.replace_with)            # overwrite location if it has changed:
                     step_data = np.load(save_name, allow_pickle=True)
-                    robot_state  = step_data[()]["state"]
                     image_data   = step_data[()]['image'].transpose(2, 0, 1)
-                    tactile_data = step_data[()]['tactile']
+                    tactile_data = step_data[()]['tactile'].transpose(2, 0, 1)
                     if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
                         self.sample_index_list += [current_index]
                     current_index += 1
-                    self.data.append([robot_state, image_data, tactile_data])
-
-        if self.config.scale_data:
-            tactile_data     = np.array([i[2] for i in self.data])
-            robot_state_data = np.array([i[0] for i in self.data])
-
-            # Create MinMaxScaler instances for each axis
-            if self.train == True:
-                self.tactile_scaler_x   = MinMaxScaler(feature_range=(0, 1))
-                self.tactile_scaler_y   = MinMaxScaler(feature_range=(0, 1))
-                self.tactile_scaler_z   = MinMaxScaler(feature_range=(0, 1))
-                self.robot_state_norm   = StandardScaler()
-                self.robot_state_scaler = MinMaxScaler(feature_range=(0, 1))
-            else: # load the scalars from the save_dir:
-                self.tactile_scaler_x   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                self.tactile_scaler_y   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                self.tactile_scaler_z   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
-                self.robot_state_norm   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
-                self.robot_state_scaler = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
-
-            # Fit the scalers on the corresponding slices of the tactile data
-            self.tactile_scaler_x.fit(tactile_data[:, 0, :])
-            self.tactile_scaler_y.fit(tactile_data[:, 1, :])
-            self.tactile_scaler_z.fit(tactile_data[:, 2, :])
-
-            # Transform the data (tactile)
-            tactile_data[:, 0, :] = self.tactile_scaler_x.transform(tactile_data[:, 0, :])
-            tactile_data[:, 1, :] = self.tactile_scaler_y.transform(tactile_data[:, 1, :])
-            tactile_data[:, 2, :] = self.tactile_scaler_z.transform(tactile_data[:, 2, :])
-
-            # normalise then scale the data (action) - we have to do this in two steps
-            self.robot_state_norm.fit(robot_state_data)
-            robot_state_data      = self.robot_state_norm.transform(robot_state_data)
-            self.robot_state_scaler.fit(robot_state_data)
-            robot_state_data      = self.robot_state_scaler.transform(robot_state_data)
-
-            # train_utils.viz_robot_state_histogram(robot_state_data)
-            train_utils.viz_tactile_histogram(tactile_data)
-
-            name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(1, len(name), figsize=(12, 12))
-            for i in range(len(name)):
-                ax[i].hist(robot_state_data[:, i].flatten(), bins=200)
-                ax[i].set_title(f"{name[i]}")
-                ax[i].set_xlabel("angle/distance")
-                ax[i].set_ylabel("Frequency")
-            plt.tight_layout()
-            # save
-            plt.savefig("robot_state_histogram.png")
-
-            for i in range(len(self.data)):
-                self.data[i][2] = tactile_data[i]
-                self.data[i][0] = robot_state_data[i]
-
-            if self.train:
-                os.makedirs(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id), exist_ok=True)
-                joblib.dump(self.tactile_scaler_x,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                joblib.dump(self.tactile_scaler_y,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
-                joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
-                joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
+                    self.data.append([image_data, tactile_data])
 
 def main(argv):
     ###########################
@@ -304,13 +217,13 @@ def main(argv):
     train_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length,  prediction_horizon=config.num_frames - config.context_length, train=True)
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False)
+    val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
+    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
     viz_dataloader = DataLoader(viz_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
-    test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_test_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
+    test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False, test=True)
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
     ###########################
@@ -327,7 +240,7 @@ def main(argv):
         elif config.model_name == "SVG-ACTP":      model = SPOTS_SVG_ACTP(config.model_config).to(config.device)
         elif config.model_name == "SVG-ACTP-SOP":  model = SPOTS_SVG_ACTP_SOP(config.model_config).to(config.device)
         model.initialise_model()
-        
+
     if   config.criterion == "MAE":  criterion = nn.L1Loss()
     elif config.criterion == "MSE":  criterion = nn.MSELoss()
 
@@ -339,11 +252,11 @@ def main(argv):
     logging.info("Saving to %s", save_dir)
 
     example_batch = next(iter(train_dataloader))
-    example_batch_spec = {k: v.shape for k, v in zip(["robot", "image", "tactile"], example_batch)}
+    example_batch_spec = {k: v.shape for k, v in zip(["image", "tactile"], example_batch)}
     wandb.config.update(dict(example_batch_spec=example_batch_spec), allow_val_change=True)
 
     # save the dataset sizes
-    wandb.config.update(dict(train_dataset_size=len(train_dataset), val_dataset_size=len(val_dataset), viz_dataset_size=len(viz_dataset)), allow_val_change=True)
+    wandb.config.update(dict(train_dataset_size=len(train_dataset), val_dataset_size=len(val_dataset), viz_dataset_size=len(viz_dataset), test_dataset_size=len(test_dataset)), allow_val_change=True)
 
     # save the model attention mask
     if FLAGS.model_type == "transformer": wandb.log({"attention_mask": wandb.Image(plot)}, step=0)
@@ -433,9 +346,12 @@ def main(argv):
     model.train()
     timer = train_utils.Timer()
     step = 0
+    val_set  = [i*20 for i in range(3)]
+    viz_set = [i*32 for i in range(3)]
     with tqdm(total=config.num_steps, dynamic_ncols=True) as pbar:
         timer.tick("batch_gen")
         timer.tick("total")
+
         while step < config.num_steps:
             for batch in train_dataloader:
                 timer.tock("batch_gen")

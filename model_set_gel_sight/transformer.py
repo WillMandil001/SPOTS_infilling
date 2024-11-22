@@ -347,7 +347,7 @@ class VPGPT(nn.Module):
 			pred_tactile = pred_tactile.transpose(1, 2)  																				              # output shape = [bs*t, enc_dim, num_patch]
 			pred_tactile = pred_tactile.view(pred_tactile.shape[0], pred_tactile.shape[1], tactile_patch_size, tactile_patch_size)  										              # output shape = [bs*t, enc_dim, patch_size, patch_size]
 
-			pred_tactile = self.transformer.sig(self.transformer.decode_and_depatch(pred_tactile)) 									  # input shape  = [bs*t, enc_dim, patch_size, patch_size] || output shape = [bs*t, c, h, w]
+			pred_tactile = self.transformer.sig(self.transformer.decode_and_depatch_tactile(pred_tactile)) 									  # input shape  = [bs*t, enc_dim, patch_size, patch_size] || output shape = [bs*t, c, h, w]
 			pred_tactile = pred_tactile.reshape(-1, self.config.context_length, self.config.input_dim, self.config.TH, self.config.TW)    # output shape = [bs, t, c, h, w]
 
 			tactile_loss = F.l1_loss(pred_tactile, tactile_targets, reduction='mean')

@@ -93,7 +93,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = True
+        self.debug             = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False
         self.model_type        = ""
@@ -115,7 +115,7 @@ class Config:
         # Training parameters
         ###########################
         self.seed       = 42
-        self.batch_size = 6 # 256
+        self.batch_size = 256
 
         self.num_steps       = 25_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
         self.save_interval   = 10_000
@@ -144,7 +144,7 @@ class Config:
 
         if self.dataset_to_use == "robot_pushing":             self.viz_steps = [1, 200, 800, 1050, 1350]      # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
         elif self.dataset_to_use == "robot_pushing_edge_case": self.viz_steps = [0,3,6,9, 12,15,18,21, 24,27,30,33, 36,39,42,45]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
-        else: self.viz_steps = [0, 5, 10]
+        else: self.viz_steps = [0, 50, 100]
 
         ###########################
         # Infilling parameters
@@ -200,7 +200,7 @@ class Config:
         self.action_dim 	           = 6
         self.tactile_dim 	           = 3
         self.patches_per_tactile_frame = 64  # 1 means no patches, 
-        self.patches_per_action_frame  = 6    # 1 means no patches, 
+        self.patches_per_action_frame  = 6   # 1 means no patches, 
 
         assert self.action_dim   % self.patches_per_action_frame  == 0
         assert self.image_height % self.transformer_input_height  == 0

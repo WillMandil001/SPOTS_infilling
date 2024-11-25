@@ -94,7 +94,7 @@ class Config:
         # General parameters
         ###########################
         self.debug             = False
-        self.pre_load_data     = True
+        self.pre_load_data     = False
         self.preload_data_gpu  = False
         self.model_type        = ""
 
@@ -123,14 +123,14 @@ class Config:
         if self.debug: self.eval_interval   = 10
         else:          self.eval_interval   = 500
 
-        self.sample_rate = 1                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
+        self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
         self.num_frames 	      = 5+1     # IF transformers: just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
         self.context_length       = 5
         self.prediction_horizon   = 15    # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 
-        self.num_workers = 4
-        self.device = "cuda"
+        self.num_workers = 0
+        self.device = "cuda:0"
 
         self.scale_data              = True
 
@@ -144,7 +144,7 @@ class Config:
 
         if self.dataset_to_use == "robot_pushing":             self.viz_steps = [1, 200, 800, 1050, 1350]      # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
         elif self.dataset_to_use == "robot_pushing_edge_case": self.viz_steps = [0,3,6,9, 12,15,18,21, 24,27,30,33, 36,39,42,45]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
-        else: self.viz_steps = [0, 50, 100]
+        else: self.viz_steps = [i for i in range(0, 100, 10)]
 
         ###########################
         # Infilling parameters

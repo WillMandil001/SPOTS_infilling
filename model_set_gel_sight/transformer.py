@@ -289,7 +289,7 @@ class VPGPT(nn.Module):
 
 		# ich tat es
 
-		tok_emb = idx.view(-1, self.config.input_dim, self.config.H, self.config.W)
+		tok_emb = idx.contiguous().view(-1, self.config.input_dim, self.config.H, self.config.W)
 		tok_emb = self.transformer.patch_and_embed(tok_emb)  # shape (b, n_embd, t, t)
 
 		patch_size = tok_emb.shape[2]
@@ -299,7 +299,7 @@ class VPGPT(nn.Module):
 		tok_emb = tok_emb.reshape(tok_emb.shape[0], -1, tok_emb.shape[3])							# flatten the time_steps and the patches into one long sequence
 
 		if self.config.tactile:
-			tok_emb_tactile = tactiles.view(-1, self.config.tactile_dim, self.config.TH, self.config.TW)
+			tok_emb_tactile = tactiles.contiguous().view(-1, self.config.tactile_dim, self.config.TH, self.config.TW)
 			tok_emb_tactile = self.transformer.patch_and_embed_tactile(tok_emb_tactile)  # shape (b, n_embd, t, t)
 
 			tactile_patch_size = tok_emb_tactile.shape[2]

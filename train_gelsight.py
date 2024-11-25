@@ -36,7 +36,7 @@ flags.DEFINE_string ('test_version',             "testing...",   'just a filler 
 flags.DEFINE_boolean('train_infill',             True,          'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              True,          'Whether to infill or not')
 flags.DEFINE_boolean('train_tactile_infill',     True,          'Whether to infill or not')
-flags.DEFINE_boolean('test_tactile_infill',      True,          'Whether to infill or not')
+flags.DEFINE_boolean('test_tactile_infill',      False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags
@@ -78,14 +78,12 @@ class VisionTactileDataset(Dataset):
 
         if config.debug:
             self.map_data = self.map_data[:10]
-
-    ####### DELETE THIS LATER!!!!
-        if train == True:
-            self.map_data = self.map_data[:400]
-        elif train == False and test == False: 
-            self.map_data = self.map_data[600:610]
-        if test == True:
-            self.map_data = self.map_data[600:610]
+        elif train == True:
+            self.map_data = self.map_data[:-100]
+        elif test == True:
+            self.map_data = self.map_data[-100:-50]
+        elif train == False and test == False:
+            self.map_data = self.map_data[-50:]
 
         self.build_dataset()
 
@@ -96,9 +94,14 @@ class VisionTactileDataset(Dataset):
         start_index = self.sample_index_list[idx]
         image_data, tactile_data = [], []
         for i in range(0, (self.context_len + self.prediction_horizon)*self.config.sample_rate, self.config.sample_rate):
-            step_data = self.data[start_index + i]
-            if self.config.image:       image_data.append(step_data[0].astype(np.float32) / 255)
-            if self.config.tactile:     tactile_data.append(step_data[1].astype(np.float32) / 255)
+            if self.config.pre_load_data:
+                step_data = self.data[start_index + i]
+                if self.config.image:       image_data.append(step_data[0].astype(np.float32) / 255)
+                if self.config.tactile:     tactile_data.append(step_data[1].astype(np.float32) / 255)
+            else:
+                step_data = np.load(self.data[start_index + i], allow_pickle=True)
+                if self.config.image:       image_data.append(step_data[()]['image'].transpose(2, 0, 1).astype(np.float32) / 255)
+                if self.config.tactile:     tactile_data.append(step_data[()]['tactile'].transpose(2, 0, 1).astype(np.float32) / 255)
 
         if self.config.image:    image_data   = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
         if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
@@ -115,20 +118,23 @@ class VisionTactileDataset(Dataset):
                 self.total_sequences += valid_sequences
                 self.sequences += episode['step_save_name_list'][self.context_len + self.prediction_horizon - 1:]  #  TODO not needed for pre-loaded datasets and needs a fix for sample_rate stuff 
 
-        if self.config.pre_load_data:
-            self.data = []
-            self.sample_index_list = []
-            current_index = 0
-            for episode in tqdm(self.map_data, desc="Loading data", dynamic_ncols=True):
-                episode_length = episode['episode_length']
-                for step_num, save_name in enumerate(episode['step_save_name_list']):
+        self.data = []
+        self.sample_index_list = []
+        current_index = 0
+        for episode in tqdm(self.map_data, desc="Loading data", dynamic_ncols=True):
+            episode_length = episode['episode_length']
+            for step_num, save_name in enumerate(episode['step_save_name_list']):
+                if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
+                    self.sample_index_list += [current_index]
+                current_index += 1
+                if self.config.pre_load_data:
                     step_data = np.load(save_name, allow_pickle=True)
                     image_data   = step_data[()]['image'].transpose(2, 0, 1)
                     tactile_data = step_data[()]['tactile'].transpose(2, 0, 1)
-                    if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
-                        self.sample_index_list += [current_index]
-                    current_index += 1
                     self.data.append([image_data, tactile_data])
+                else:
+                    self.data.append(save_name)
+
 
 def main(argv):
     ###########################
@@ -318,6 +324,8 @@ def main(argv):
                     train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
                     tactile_loss_list.append(tactile_losses.item())
                     loss_sequences_tactile.append(loss_sequence_tactile)
+                if config.image and config.tactile:
+                    train_utils.viz_combined_figure(image_groundtruth, rollout_image_prediction, image_context, tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
 
         viz_metrics = {}
         if config.model_type == "transformer":
@@ -346,8 +354,6 @@ def main(argv):
     model.train()
     timer = train_utils.Timer()
     step = 0
-    val_set  = [i*20 for i in range(3)]
-    viz_set = [i*32 for i in range(3)]
     with tqdm(total=config.num_steps, dynamic_ncols=True) as pbar:
         timer.tick("batch_gen")
         timer.tick("total")
@@ -366,9 +372,9 @@ def main(argv):
                     with timer("val"):        
                         val_update_info = val_step(step, config, model, criterion, val_dataloader, timer)
                         train_utils.wandb_log(val_update_info, step=step)
-                    # with timer("visualize"):
-                    #     viz_update_info = viz_step(step, config, model, criterion, viz_dataloader, timer)
-                    #     train_utils.wandb_log(viz_update_info, step=step)
+                    with timer("visualize"):
+                        viz_update_info = viz_step(step, config, model, criterion, viz_dataloader, timer)
+                        train_utils.wandb_log(viz_update_info, step=step)
                     with timer("test"):  
                         viz_update_info = viz_step(step, config, model, criterion, test_dataloader, timer)
                         train_utils.wandb_log(viz_update_info, step=step)

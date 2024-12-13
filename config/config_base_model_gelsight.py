@@ -7,7 +7,7 @@ class model_config_builder_transformer():
         if config.image == True and config.action == True and config.tactile == False:
             self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + ((config.context_length + 1)* config.patches_per_action_frame)
         if config.image == True and config.action == True and config.tactile == True:
-            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + ((config.context_length + 1)* config.patches_per_action_frame) + (config.context_length*config.patches_per_tactile_frame)
+            self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + ((config.context_length + 1)* config.patches_per_action_frame) + int((config.tactile_height / config.transformer_input_tactile_height) * (config.tactile_width / config.transformer_input_tactile_width))
         if config.image == True and config.action == False and config.tactile == True:
             self.block_size = int(((config.image_height / config.transformer_input_height) * (config.image_width / config.transformer_input_width)) * config.context_length) + int(((config.tactile_height / config.transformer_input_tactile_height) * (config.tactile_width / config.transformer_input_tactile_width)) * config.context_length)
 
@@ -94,7 +94,7 @@ class Config:
         # General parameters
         ###########################
         self.debug             = False
-        self.pre_load_data     = False
+        self.pre_load_data     = True
         self.preload_data_gpu  = False
         self.model_type        = ""
 
@@ -115,9 +115,9 @@ class Config:
         # Training parameters
         ###########################
         self.seed       = 42
-        self.batch_size = 256
+        self.batch_size = 128
 
-        self.num_steps       = 25_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
+        self.num_steps       = 50_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
         self.save_interval   = 10_000
         self.log_interval    = 100
         if self.debug: self.eval_interval   = 10
@@ -129,7 +129,7 @@ class Config:
         self.context_length       = 5
         self.prediction_horizon   = 15    # when rolling out autoregressive models, this is the prediction horizon for testing (not training)
 
-        self.num_workers = 0
+        self.num_workers = 2
         self.device = "cuda:0"
 
         self.scale_data              = True
@@ -144,7 +144,7 @@ class Config:
 
         if self.dataset_to_use == "robot_pushing":             self.viz_steps = [1, 200, 800, 1050, 1350]      # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
         elif self.dataset_to_use == "robot_pushing_edge_case": self.viz_steps = [0,3,6,9, 12,15,18,21, 24,27,30,33, 36,39,42,45]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
-        else: self.viz_steps = [i for i in range(0, 100, 10)]
+        else: self.viz_steps = [i for i in range(0, 1500, 50)]
 
         ###########################
         # Infilling parameters
@@ -189,17 +189,24 @@ class Config:
         self.patch_size                = 16
         self.transformer_input_height  = 16
         self.transformer_input_width   = 16
-        
-        self.tactile_height                   = 256
-        self.tactile_width                    = 256
-        self.patch_size_tactile               = 32
-        self.transformer_input_tactile_height = 32   ## TODO could be wrong here
-        self.transformer_input_tactile_width  = 32   ## TODO could be wrong here
+
+        self.tactile_height                   = 64
+        self.tactile_width                    = 64
+        self.patch_size_tactile               = 16
+        self.transformer_input_tactile_height = 16   ## TODO could be wrong here
+        self.transformer_input_tactile_width  = 16   ## TODO could be wrong here
+
+
+        # self.tactile_height                   = 256
+        # self.tactile_width                    = 256
+        # self.patch_size_tactile               = 32
+        # self.transformer_input_tactile_height = 32   ## TODO could be wrong here
+        # self.transformer_input_tactile_width  = 32   ## TODO could be wrong here
 
         self.input_dim   	           = 3
         self.action_dim 	           = 6
         self.tactile_dim 	           = 3
-        self.patches_per_tactile_frame = 64  # 1 means no patches, 
+        self.patches_per_tactile_frame = 16  # 1 means no patches, 
         self.patches_per_action_frame  = 6   # 1 means no patches, 
 
         assert self.action_dim   % self.patches_per_action_frame  == 0

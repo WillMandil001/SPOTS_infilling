@@ -214,10 +214,10 @@ def viz_combined_figure(ground_truth_image, predicted_frames_image, input_frames
         ax.set_title(f"Pred Tac {j + 1}")
         index += 1
 
-    plt.tight_layout()
-    plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
-    plt.savefig("mixedtemp1.png")
-    plt.close()
+    # plt.tight_layout()
+    # plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
+    # plt.savefig("mixedtemp1.png")
+    # plt.close()
 
     # Log the figure to Weights & Biases
     wandb.log({"viz_combined_{}".format(step_name): wandb.Image(fig)}, step=step)

@@ -17,28 +17,42 @@ def create_rlds_dataset(folders, data_location):
         try:
             # for controlled test dataset
             # robot_state = np.array(pd.read_csv(data_location + folder + '/robot_state.csv', header=None))[1:]
-            # xela_sensor = np.array(pd.read_csv(data_location + folder + '/xela_sensor1.csv', header=None))[1:]
+            xela_sensor = np.array(pd.read_csv(data_location + folder + '/xela_sensor1.csv', header=None))[1:]
             # image_data  = np.array(np.load(data_location + folder + '/color_images.npy'))
 
             # for the original marked_object dataset
-            robot_state = np.array(pd.read_csv(data_location + folder + '/robot_states.csv', header=None))[1:]
-            xela_sensor = np.array(np.load(data_location + folder + '/tactile_states.npy'))
+            # robot_state = np.array(pd.read_csv(data_location + folder + '/robot_states.csv', header=None))[1:]
+            # xela_sensor = np.array(np.load(data_location + folder + '/tactile_states.npy'))
             image_data  = np.array(np.load(data_location + folder + '/color_images.npy'))
+            robot_task_space = np.array(np.load(data_location + folder + '/robot_EE_states.npy'))
         except:
             print("Error loading data from folder: ", folder)
             continue
-        robot_task_space = np.array([[state[-7], state[-6], state[-5]] + list(R.from_quat([state[-4], state[-3], state[-2], state[-1]]).as_euler('zyx', degrees=True)) for state in robot_state]).astype(float)
+        # robot_task_space = np.array([[state[-7], state[-6], state[-5]] + list(R.from_quat([state[-4], state[-3], state[-2], state[-1]]).as_euler('zyx', degrees=True)) for state in robot_state]).astype(float)
         tactile_data_split = [np.array(xela_sensor[:, [i for i in range(feature, 48, 3)]]).astype(float) for feature in range(3)]
         tactile_mean_start_values = [int(sum(tactile_data_split[feature][0]) / len(tactile_data_split[feature][0])) for feature in range(3)]
         tactile_offsets = [[tactile_mean_start_values[feature] - tactile_starting_value for tactile_starting_value in tactile_data_split[feature][0]] for feature in range(3)]
         tactile_data = [[tactile_data_split[feature][ts] + tactile_offsets[feature] for feature in range(3)] for ts in range(tactile_data_split[0].shape[0])]
 
         raw = []
+        # for k in range(len(image_data)):
+        #     tmp = Image.fromarray(image_data[k])
+        #     tmp = tmp.resize((128, 128), Image.LANCZOS)
+        #     tmp = np.frombuffer(tmp.tobytes(), dtype=np.uint8)
+        #     tmp = tmp.reshape((128, 128, 3))
+        #     raw.append(tmp)
+
         for k in range(len(image_data)):
             tmp = Image.fromarray(image_data[k])
-            tmp = tmp.resize((64, 64), Image.LANCZOS)
+            width, height = tmp.size
+            left   = width  / 4
+            top    = height / 4
+            right  = 3 * width  / 4
+            bottom = 3 * height / 4
+            tmp = tmp.crop((left, top, right, bottom))
+            tmp = tmp.resize((128, 128), Image.LANCZOS)
             tmp = np.frombuffer(tmp.tobytes(), dtype=np.uint8)
-            tmp = tmp.reshape((64, 64, 3))
+            tmp = tmp.reshape((128, 128, 3))
             raw.append(tmp)
 
         image_data = np.array(raw)
@@ -82,9 +96,13 @@ def create_rlds_dataset(folders, data_location):
 
         np.save(data_location + "formatted_dataset/map.npy", map)
 
-dataset_dirs = ["/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/train/",
-                "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/val/",
-                "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/test_examples/"]
+# dataset_dirs = ["/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/train/",
+#                 "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/val/",
+#                 "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/test_examples/"]
+
+dataset_dirs = ["/home/wmandil/robotics/datasets/infilling_simple_002_2cans/train/",
+                "/home/wmandil/robotics/datasets/infilling_simple_002_2cans/val/",
+                "/home/wmandil/robotics/datasets/infilling_simple_002_2cans/test/"]
 
 for dataset_dir in dataset_dirs:
     create_rlds_dataset(folders=os.listdir(dataset_dir),  data_location=dataset_dir)

@@ -11,16 +11,10 @@ import train_utils
 from config.config_base_model import Config, model_config_builder_transformer, model_config_builder_actp, model_config_builder_svg
 
 # # models
-# from model_set.transformer import VPGPT
-# from model_set.SPOTS_SVG_ACTP_SOP import Model as SPOTS_SVG_ACTP_SOP
-# from model_set.SPOTS_SVG_ACTP import Model as SPOTS_SVG_ACTP
-# from model_set.SVG import Model as SVG
-
-# models
-from model_set_gel_sight.transformer import VPGPT
-# from model_set_gel_sight.SPOTS_SVG_ACTP_SOP import Model as SPOTS_SVG_ACTP_SOP
-# from model_set_gel_sight.SPOTS_SVG_ACTP import Model as SPOTS_SVG_ACTP
-# from model_set_gel_sight.SVG import Model as SVG
+from model_set.transformer import VPGPT
+from model_set.SPOTS_SVG_ACTP_SOP import Model as SPOTS_SVG_ACTP_SOP
+from model_set.SPOTS_SVG_ACTP import Model as SPOTS_SVG_ACTP
+from model_set.SVG import Model as SVG
 
 # data loading and processing
 from tqdm import tqdm
@@ -41,9 +35,9 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
-flags.DEFINE_boolean('train_infill',             False,          'Whether to infill or not')
-flags.DEFINE_boolean('test_infill',              False,          'Whether to infill or not')
-flags.DEFINE_boolean('train_tactile_infill',     False,          'Whether to infill or not')
+flags.DEFINE_boolean('train_infill',             True,           'Whether to infill or not')
+flags.DEFINE_boolean('test_infill',              True,           'Whether to infill or not')
+flags.DEFINE_boolean('train_tactile_infill',     True,           'Whether to infill or not')
 flags.DEFINE_boolean('test_tactile_infill',      False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
@@ -447,13 +441,13 @@ def main(argv):
                     train_utils.wandb_log({"training": update_info, "timer": timer.get_average_times()}, step=step)
 
                 if (step + 1) % config.eval_interval == 0:
-                    with timer("val"):        
+                    with timer("val"):
                         val_update_info = val_step(step, config, model, criterion, val_dataloader, timer)
                         train_utils.wandb_log(val_update_info, step=step)
                     # with timer("visualize"):
                     #     viz_update_info = viz_step(step, config, model, criterion, viz_dataloader, timer)
                     #     train_utils.wandb_log(viz_update_info, step=step)
-                    with timer("test"):  
+                    with timer("test"):
                         viz_update_info = viz_step(step, config, model, criterion, test_dataloader, timer)
                         train_utils.wandb_log(viz_update_info, step=step)
                     model.train()

@@ -141,13 +141,13 @@ def create_rlds_dataset(tactile_data, vision_data, data_location):
             tactile_frame = Image.open(tactile_frame)
             vision_frame  = Image.open(vision_frame)
 
-            tactile_frame = tactile_frame.resize((256, 256), Image.LANCZOS)
+            tactile_frame = tactile_frame.resize((64, 64), Image.LANCZOS)
             vision_frame = vision_frame.resize((64, 64), Image.LANCZOS)
 
             tactile_frame = np.frombuffer(tactile_frame.tobytes(), dtype=np.uint8)
             vision_frame = np.frombuffer(vision_frame.tobytes(), dtype=np.uint8)
 
-            tactile_frame = tactile_frame.reshape((256, 256, 3))
+            tactile_frame = tactile_frame.reshape((64, 64, 3))
             vision_frame = vision_frame.reshape((64, 64, 3))
 
             step = {

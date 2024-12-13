@@ -62,7 +62,7 @@ flags.DEFINE_string ('pretrained_config_path',  "/home/wmandil/robotics/SPOTS_in
 # Build the dataset and dataloader
 ###########################
 class VisionTactileDataset(Dataset):
-    def __init__(self, config, map_file, context_len, prediction_horizon, train=True, validate=False, wandb_id= "", test=False):
+    def __init__(self, config, map_file, context_len, prediction_horizon, train=True, validate=False, wandb_id= "", test=False, vis=False):
         self.config = config
         self.train = train
         self.map_file = map_file
@@ -79,11 +79,11 @@ class VisionTactileDataset(Dataset):
         if config.debug:
             self.map_data = self.map_data[:10]
         elif train == True:
-            self.map_data = self.map_data[:-100]
+            self.map_data = self.map_data[:-300]
         elif test == True:
-            self.map_data = self.map_data[-100:-50]
+            self.map_data = self.map_data[-300:][::10]
         elif train == False and test == False:
-            self.map_data = self.map_data[-50:]
+            self.map_data = self.map_data[-300:][::10]
 
         self.build_dataset()
 
@@ -121,8 +121,10 @@ class VisionTactileDataset(Dataset):
         self.data = []
         self.sample_index_list = []
         current_index = 0
+        episode_length_list = []
         for episode in tqdm(self.map_data, desc="Loading data", dynamic_ncols=True):
             episode_length = episode['episode_length']
+            episode_length_list.append(episode_length)
             for step_num, save_name in enumerate(episode['step_save_name_list']):
                 if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
                     self.sample_index_list += [current_index]
@@ -134,6 +136,15 @@ class VisionTactileDataset(Dataset):
                     self.data.append([image_data, tactile_data])
                 else:
                     self.data.append(save_name)
+            #print the episode length on the tqdm bar
+            if step_num % 10 == 0:
+                tqdm.write(f"Episode length: {episode_length}")
+
+
+
+        # log the dataset length and other features
+        wandb.config.update(dict(total_sequences=self.total_sequences), allow_val_change=True)
+        print("self.total_sequences: ", self.total_sequences)
 
 
 def main(argv):
@@ -226,7 +237,7 @@ def main(argv):
     val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
+    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False, vis=True)
     viz_dataloader = DataLoader(viz_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
     test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False, test=True)
@@ -315,13 +326,13 @@ def main(argv):
                 (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
                 loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context, tactile_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True)
                 if config.image:
-                    train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
+                    # train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
                     image_loss_list.append(image_losses.item())
                     loss_sequences_image.append(loss_sequence_image)
                     combined_losses.append(combined_total_loss.item())
                     loss_sequences_combined.append(loss_sequence_combined)
                 if config.tactile:
-                    train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
+                    # train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
                     tactile_loss_list.append(tactile_losses.item())
                     loss_sequences_tactile.append(loss_sequence_tactile)
                 if config.image and config.tactile:

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VTGPT"
+python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VGPT"
+
+
 # test with pre-trained tokenizer
 # python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VGPT"  --test_version="v4 - pt-infill-tok " --infill=True   --num_steps=10_000 --pretrained=True --pretrained_tok=True --pretrained_tok_frozen=True --pretrained_model_path="/home/wmandil/robotics/saved_models/VGPT-infill/v4 - VGPT-infill_20240717_082440/model_final.pth" --pretrained_config_path="/home/wmandil/robotics/SPOTS_infilling/wandb/run-20240717_082440-v4 - VGPT-infill_20240717_082440/files/config.yaml"
 # python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VTGPT" --test_version="v4 - pt-infill-tok " --infill=True   --num_steps=10_000 --pretrained=True --pretrained_tok=True --pretrained_tok_frozen=True --pretrained_model_path="/home/wmandil/robotics/saved_models/VGPT-infill/v4 - VGPT-infill_20240717_082440/model_final.pth" --pretrained_config_path="/home/wmandil/robotics/SPOTS_infilling/wandb/run-20240717_082440-v4 - VGPT-infill_20240717_082440/files/config.yaml"

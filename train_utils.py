@@ -18,6 +18,8 @@ import torch
 import os
 import numpy as np
 import cv2
+from PIL import Image
+
 # from absl import logging
 from collections import defaultdict
 from contextlib import contextmanager
@@ -103,7 +105,7 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
 
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
-    plt.savefig("temp1.png")
+    plt.savefig(f"temp{step_name}.png")
     # plt.close()
 
     wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
@@ -145,7 +147,7 @@ def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, tactile_c
     wandb.log({"viz_tactile_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 
-def viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, config, step):
+def viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_sequences_tactile, config, step, name=""):
     fig, ax = plt.subplots(1, 1, figsize=(8, 5))
 
     if config.model_type == "transformer":
@@ -191,6 +193,10 @@ def viz_rollout_losses(loss_sequences_combined, loss_sequences_image, loss_seque
     ax.set_xlabel("Time step")
     ax.set_ylabel("Loss MAE")
     ax.legend()
+    # if name != "": 
+    #     # save the figure as png
+    #     plt.savefig(name + ".png")
+
     wandb.log({"combined_loss_over_time": wandb.Image(fig)}, step=step)
     plt.close(fig)
 
@@ -228,22 +234,26 @@ def viz_robot_state_histogram(robot_state_data):
 # Training and Validation functions
 #
 ###########################
-def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout, repeatable_infill=False, eval=False):
+def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout, repeatable_infill=False, eval=False, step=0):
     image_context, image_predict, tactile_context, tactile_predict, robot_data = None, None, None, None, None
     if horizon_rollout:
         if config.image:
             image_context = batch[1][:, :config.context_length, ...].to(config.device)    # take all but the last image          shape = [bs, c, 64, 64, 3])
             image_predict = batch[1][:,  config.context_length:, ...].to(config.device)   # take just the last image             shape = [bs, p,     64, 64, 3])
             if config.test_infill:
-                if repeatable_infill:
-                    x = config.repeatable_infil_x_pos
-                    y = config.repeatable_infil_y_pos
-                    infill_patch_size = config.repeatable_infil_patch_size
+                if config.complex_shape_infill:
+                        image_context = add_complex_occlusions(image_context, config, repeatable_infill=repeatable_infill, step=step)
                 else:
-                    infill_patch_size = np.random.randint(config.min_infill_patch_size, config.max_infill_patch_size)
-                    x = np.random.randint(0, config.image_height - infill_patch_size)
-                    y = np.random.randint(0, config.image_width  - infill_patch_size)
-                image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
+                    if repeatable_infill:
+                        x = config.repeatable_infil_x_pos
+                        y = config.repeatable_infil_y_pos
+                        infill_patch_size = config.repeatable_infil_patch_size
+                    else:
+                        infill_patch_size = np.random.randint(config.min_infill_patch_size, config.max_infill_patch_size)
+                        x = np.random.randint(0, config.image_height - infill_patch_size)
+                        y = np.random.randint(0, config.image_width  - infill_patch_size)
+                    image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
+
         if config.action:
             robot_data    = batch[0].to(config.device)                                          # take the full sequence of robot data shape = [bs, c+p,   6])       
         if config.tactile:
@@ -258,15 +268,18 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
             image_context = batch[1][:, :-1, ...].to(config.device)    # take all but the last image          shape = [bs, c+p-1, 64, 64, 3])
             image_predict = batch[1][:,  1:, ...].to(config.device)    # take just the last image             shape = [bs, 1,     64, 64, 3])
             if config.train_infill:
-                if repeatable_infill:
-                    x = config.repeatable_infil_x_pos
-                    y = config.repeatable_infil_y_pos
-                    infill_patch_size = config.repeatable_infil_patch_size
+                if config.complex_shape_infill:
+                        image_context = add_complex_occlusions(image_context, config, repeatable_infill=repeatable_infill, step=step)
                 else:
-                    infill_patch_size = np.random.randint(config.min_infill_patch_size, config.max_infill_patch_size)
-                    x = np.random.randint(0, config.image_height - infill_patch_size)
-                    y = np.random.randint(0, config.image_width  - infill_patch_size)
-                image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
+                    if repeatable_infill:
+                        x = config.repeatable_infil_x_pos
+                        y = config.repeatable_infil_y_pos
+                        infill_patch_size = config.repeatable_infil_patch_size
+                    else:
+                        infill_patch_size = np.random.randint(config.min_infill_patch_size, config.max_infill_patch_size)
+                        x = np.random.randint(0, config.image_height - infill_patch_size)
+                        y = np.random.randint(0, config.image_width  - infill_patch_size)
+                    image_context[:, :, :, x:x+infill_patch_size, y:y+infill_patch_size] = 0.0
         if config.action:
             robot_data    = batch[0].to(config.device)                   # take the full sequence of robot data shape = [bs, c+p,   6])
         if config.tactile:
@@ -436,3 +449,254 @@ def str2bool(v):
         return True
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
+
+def add_complex_occlusions(
+    image_context: torch.Tensor,
+    config,
+    repeatable_infill: bool = False,
+    step: int = 0
+):
+    """
+    image_context: [batch_size, time_step, channel, height, width]
+    config needs attributes:
+      - image_height
+      - image_width
+      - min_infill_patch_size
+      - max_infill_patch_size
+      - repeatable_infil_x_pos
+      - repeatable_infil_y_pos
+      - repeatable_infil_patch_size
+
+    Shapes used:
+      0 -> Square
+      1 -> Ellipse (axes_x ~ patch_size/2, axes_y ~ patch_size/4)
+      2 -> Circle  (radius ~ patch_size/2)
+
+    Behavior:
+      - If repeatable_infill=True, we generate exactly one shape/color per batch item,
+        using config + fixed seed => same shape every call for a given `step`.
+      - If repeatable_infill=False, we generate random shapes/positions (1 per batch item),
+        but **still replicate** it across all time steps in that batch item.
+    """
+
+    device = image_context.device
+    dtype = image_context.dtype
+
+    B, T, C, H, W = image_context.shape
+
+    # -------------------------------------------------------------------------
+    # 1. Sample parameters (x, y, patch_size, shape_type, color).
+    #    They are shaped [B] for all modes, then expanded to [B,1] → [B,T].
+    # -------------------------------------------------------------------------
+    if repeatable_infill:
+        # Fix seed so we get the same shape each time (for this 'step').
+        torch.manual_seed(step)
+
+        # Each batch item uses config's x/y/patch_size
+        x = torch.full((B,), config.repeatable_infil_x_pos, device=device, dtype=torch.long)
+        y = torch.full((B,), config.repeatable_infil_y_pos, device=device, dtype=torch.long)
+        patch_size = torch.full((B,), config.repeatable_infil_patch_size, device=device, dtype=torch.long)
+
+        # Pick shape_type in [0..2) and color in [0..255]
+        # shape_type = torch.randint(0, 3, (B,), device=device, dtype=torch.long)
+        # lets just do shape 0 for now
+        shape_type = torch.full((B,), 0, device=device, dtype=torch.long)
+        color = torch.randint(0, 256, (B, C), device=device, dtype=dtype)
+    else:
+        # Random x/y/patch_size for each batch item
+        x = torch.randint(
+            0, config.image_width,
+            (B,), device=device, dtype=torch.long
+        )
+        y = torch.randint(
+            0, config.image_height,
+            (B,), device=device, dtype=torch.long
+        )
+        patch_size = torch.randint(
+            config.min_infill_patch_size,
+            config.max_infill_patch_size + 1,
+            (B,), device=device, dtype=torch.long
+        )
+
+        # shape_type in [0..2), color in [0..255]
+        shape_type = torch.randint(0, 3, (B,), device=device, dtype=torch.long)
+        color = torch.randint(0, 256, (B, C), device=device, dtype=dtype)
+
+    # Clamp patch_size so shapes aren’t invisible
+    patch_size = torch.clamp(patch_size, min=2)
+
+    # Keep x,y in-bounds: x ≤ W - patch_size, y ≤ H - patch_size
+    x = torch.clamp(x, max=(W - patch_size))
+    y = torch.clamp(y, max=(H - patch_size))
+
+    # Expand from [B] → [B,1] → [B,T]
+    # so that each batch item has the same shape across all time steps.
+    x          = x.unsqueeze(1).expand(-1, T)
+    y          = y.unsqueeze(1).expand(-1, T)
+    patch_size = patch_size.unsqueeze(1).expand(-1, T)
+    shape_type = shape_type.unsqueeze(1).expand(-1, T)
+    color      = color.unsqueeze(1).expand(-1, T, -1)
+
+    # -------------------------------------------------------------------------
+    # 2. Build a boolean mask final_mask [B,T,H,W] for each shape.
+    # -------------------------------------------------------------------------
+    final_mask = torch.zeros((B, T, H, W), device=device, dtype=torch.bool)
+
+    # Create coordinate grid [H,W], expand to [1,1,H,W]
+    yy, xx = torch.meshgrid(
+        torch.arange(H, device=device),
+        torch.arange(W, device=device),
+        indexing="ij"
+    )
+    xx = xx.unsqueeze(0).unsqueeze(0)  # shape: [1,1,H,W]
+    yy = yy.unsqueeze(0).unsqueeze(0)  # shape: [1,1,H,W]
+
+    # Helper: broadcast from [B,T] to [B,T,1,1]
+    def bcast2D(t: torch.Tensor):
+        return t.unsqueeze(-1).unsqueeze(-1)
+
+    # --- Square (shape_type == 0)
+    square_mask = (
+        (xx >= bcast2D(x)) &
+        (xx < (bcast2D(x) + bcast2D(patch_size))) &
+        (yy >= bcast2D(y)) &
+        (yy < (bcast2D(y) + bcast2D(patch_size)))
+    )
+    square_sel = (shape_type == 0).unsqueeze(-1).unsqueeze(-1)
+    final_mask = final_mask | (square_mask & square_sel)
+
+    # --- Ellipse (shape_type == 1)
+    center_x = bcast2D(x + (patch_size // 2))
+    center_y = bcast2D(y + (patch_size // 2))
+    axes_x = bcast2D(patch_size.float() / 2 * 1.2)
+    axes_y = bcast2D(patch_size.float() / 4 * 1.2)
+
+    ellipse_mask = (
+        ((xx - center_x) / axes_x) ** 2 +
+        ((yy - center_y) / axes_y) ** 2
+    ) <= 1.0
+    ellipse_sel = (shape_type == 1).unsqueeze(-1).unsqueeze(-1)
+    final_mask = final_mask | (ellipse_mask & ellipse_sel)
+
+    # --- Circle (shape_type == 2)
+    # radius ~ patch_size/2.0 * 1.2
+    circle_r = torch.clamp(patch_size.float() / 2.0 * 1.2, min=1.0)
+    circle_mask = (
+        (xx - (bcast2D(x) + bcast2D(circle_r)))**2 +
+        (yy - (bcast2D(y) + bcast2D(circle_r)))**2
+    ) <= (bcast2D(circle_r) ** 2)
+    circle_sel = (shape_type == 2).unsqueeze(-1).unsqueeze(-1)
+    final_mask = final_mask | (circle_mask & circle_sel)
+
+    # -------------------------------------------------------------------------
+    # 3. Apply color where final_mask == True
+    # -------------------------------------------------------------------------
+    # final_mask: [B,T,H,W] -> expand to [B,T,1,H,W]
+    final_mask = final_mask.unsqueeze(2)
+    # color: [B,T,C] -> [B,T,C,1,1]
+    color_bcast = color.unsqueeze(-1).unsqueeze(-1)
+
+    # If float, scale color into [0..1]; if int, clamp to [0..255].
+    if dtype.is_floating_point:
+        color_bcast = color_bcast / 255.0
+    else:
+        color_bcast = color_bcast.clamp(0, 255)
+
+    occluded = image_context * (~final_mask) + color_bcast * final_mask
+    return occluded
+
+
+
+# def add_complex_occlusions(image_context, config, repeatable_infill=False, step=0):
+#     device = image_context.device  # Get the device (CPU or GPU) of the input tensor
+
+#     # Seed the random generator for repeatability if needed
+#     if repeatable_infill:
+#         torch.manual_seed(step)
+#         x = config.repeatable_infil_x_pos
+#         y = config.repeatable_infil_y_pos
+#         infill_patch_size = config.repeatable_infil_patch_size
+#     else:
+#         infill_patch_size = torch.randint(config.min_infill_patch_size, config.max_infill_patch_size, (1,), device=device).item()
+#         x = torch.randint(0, config.image_height - infill_patch_size, (1,), device=device).item()
+#         y = torch.randint(0, config.image_width - infill_patch_size, (1,), device=device).item()
+
+#     # Generate a blank canvas (tensor filled with zeros)
+#     canvas = torch.zeros((config.image_height, config.image_width, image_context.shape[1]), device=device, dtype=image_context.dtype)
+
+#     # Choose a random color
+#     color = torch.randint(0, 256, (image_context.shape[1],), device=device, dtype=image_context.dtype)
+
+#     # Choose a shape type
+#     shape_type = torch.randint(0, 5, (1,), device=device).item()  # 0=rectangle, 1=ellipse, 2=polygon, etc.
+
+#     if shape_type == 0:  # Rectangle
+#         x2 = x + infill_patch_size
+#         y2 = y + infill_patch_size
+#         for c in range(canvas.shape[2]):
+#             canvas[y:y2, x:x2, c] = color[c]
+#     elif shape_type == 1:  # Ellipse
+#         yy, xx = torch.meshgrid(torch.arange(0, config.image_height, device=device), torch.arange(0, config.image_width, device=device), indexing='ij')
+#         center_y, center_x = y + infill_patch_size // 2, x + infill_patch_size // 2
+#         axes_y, axes_x = int(infill_patch_size // 4 * 1.2), int(infill_patch_size // 2 * 1.2)  # Increase size by 20%
+#         ellipse_mask = (((yy - center_y) / axes_y) ** 2 + ((xx - center_x) / axes_x) ** 2) <= 1
+#         for c in range(canvas.shape[2]):
+#             canvas[..., c][ellipse_mask] = color[c]
+#     elif shape_type == 2:  # Polygon (triangle for simplicity)
+#         points = torch.tensor([[x, y], [x + infill_patch_size, y], [x + infill_patch_size // 2, y + infill_patch_size]], device=device)
+#         x_min, y_min = torch.min(points, dim=0).values
+#         x_max, y_max = torch.max(points, dim=0).values
+#         for c in range(canvas.shape[2]):
+#             canvas[y_min:y_max, x_min:x_max, c] = color[c]
+#     elif shape_type == 3:  # Line
+#         x2 = x + infill_patch_size
+#         y2 = y + infill_patch_size
+#         thickness = torch.randint(1, 5, (1,), device=device).item()
+#         for c in range(canvas.shape[2]):
+#             canvas[y:y + thickness, x:x + thickness, c] = color[c]
+#     elif shape_type == 4:  # Star (approximate with a circular region for simplicity)
+#         radius = int(infill_patch_size // 2 * 1.2)  # Increase size by 20%
+#         yy, xx = torch.meshgrid(torch.arange(0, config.image_height, device=device), torch.arange(0, config.image_width, device=device), indexing='ij')
+#         star_mask = ((yy - (y + radius)) ** 2 + (xx - (x + radius)) ** 2) <= radius ** 2
+#         for c in range(canvas.shape[2]):
+#             canvas[..., c][star_mask] = color[c]
+
+#     # Reshape canvas to match the dimensions of image_context
+#     canvas = canvas.permute(2, 0, 1).unsqueeze(0).unsqueeze(2)  # Shape: [1, Channels, 1, Height, Width]
+
+#     # Rescale the canvas values to [0, 1] for compatibility with image context
+#     canvas = canvas / 255.0 if image_context.dtype.is_floating_point else canvas.clamp(0, 255)
+
+#     # Apply the canvas to the image context
+#     image_context = image_context * (canvas == 0) + canvas
+
+#     return image_context
+
+
+def add_real_masks(image_context, config, mask_directory):
+    # Load all mask file paths
+    import os
+    mask_files = [os.path.join(mask_directory, f) for f in os.listdir(mask_directory) if f.endswith('.png')]
+    
+    # Randomly choose a mask
+    mask_path = np.random.choice(mask_files)
+    mask = Image.open(mask_path).convert("RGBA")  # Open mask with alpha channel
+    
+    # Random scale and rotation
+    scale = np.random.uniform(0.5, 2.0)
+    angle = np.random.randint(0, 360)
+    mask = mask.resize((int(mask.width * scale), int(mask.height * scale)), Image.ANTIALIAS)
+    mask = mask.rotate(angle, expand=True)
+    
+    # Random position
+    x = np.random.randint(0, config.image_height - mask.height)
+    y = np.random.randint(0, config.image_width - mask.width)
+    
+    # Convert image to RGBA
+    image = Image.fromarray(image_context[0, 0].astype(np.uint8), mode="RGBA")
+    
+    # Composite the mask onto the image
+    image.paste(mask, (y, x), mask=mask)
+    
+    # Update the image context
+    image_context[0, 0] = np.array(image.convert("RGB"), dtype=image_context.dtype)

@@ -44,6 +44,7 @@ class model_config_builder_transformer():
         self.freeze_image_decoder            = config.freeze_image_decoder
         self.patches_per_tactile_frame       = config.patches_per_tactile_frame
         self.patches_per_action_frame        = config.patches_per_action_frame
+        self.classification_bit              = config.classification_bit
 
 class model_config_builder_svg():
     def __init__(self, config):
@@ -86,9 +87,11 @@ class Config:
         self.cluster           = False
         self.pre_load_data     = True
         self.preload_data_gpu  = False
+        self.classification_bit = False
+        self.num_classes        = 5
         self.model_type        = ""
 
-        self.dataset_to_use = "infilling_simple_002_2cans"  # robot_pushing, robot_pushing_edge_case, infilling_simple_001_spam, infilling_simple_002_2cans, infilling_simple_003_10objs
+        self.dataset_to_use = "infilling_simple_005_new_set"  # robot_pushing, robot_pushing_edge_case, infilling_simple_001_spam, infilling_simple_002_2cans, infilling_simple_003_10objs, infilling_simple_005_6objs
 
         if self.cluster == False:
             self.dataset_name      = "robot_grasping_dataset"
@@ -110,7 +113,7 @@ class Config:
             self.replace_with      = "/shared/home/wmandil/datasets/{}/".format(self.dataset_to_use)
 
         self.model_name      = "AC-VTGPT-infill"  # VPGPT, AC-VGPT, AC-VTGPT
-        self.test_version    = "v3"
+        self.test_version    = "v1"
         self.experiment_name = self.test_version + " - " + self.model_name
         self.date_and_time   = datetime.datetime.now().strftime("%m%d_%H%M%S")
 
@@ -124,13 +127,13 @@ class Config:
         self.seed       = 42
         self.batch_size = 256
 
-        self.num_steps       = 50_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
-        self.save_interval   = 50_000
-        self.log_interval    = 100
+        self.num_steps       = 100_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
+        self.save_interval   = 99_000
+        self.log_interval    = 500
         if self.debug: self.eval_interval   = 10
-        else:          self.eval_interval   = 1000
+        else:          self.eval_interval   = (750*4)  # at 50000 steps we do 4000 eval_interval
 
-        self.sample_rate = 4                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
+        self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 
         self.num_frames 	      = 5+1     # IF transformers: just context length + 1 ( + 1 because its the prediction horizon for autoregressive models)
         self.context_length       = 5
@@ -149,21 +152,27 @@ class Config:
         self.shuffle_buffer_size     = 1000
         self.val_shuffle_buffer_size = 1000
 
-        if self.dataset_to_use == "robot_pushing":               self.viz_steps = [1, 200, 800, 1050, 1350]      # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
-        elif self.dataset_to_use == "robot_pushing_edge_case":   self.viz_steps = [0,3,6,9, 12,15,18,21, 24,27,30,33, 36,39,42,45]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
-        else:                                                    self.viz_steps = [i for i in range(0, 1000, 50)]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        if self.dataset_to_use   == "robot_pushing":                  self.viz_steps = [1, 200, 800, 1050, 1350]      # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        elif self.dataset_to_use == "robot_pushing_edge_case":        self.viz_steps = [0,3,6,9, 12,15,18,21, 24,27,30,33, 36,39,42,45]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        elif self.dataset_to_use == "infilling_simple_005_new_set":   self.viz_steps = [124,64,348,28,164,316,236,268,76,200]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+        else:                                                         self.viz_steps = [i for i in range(0, 10000, 4)]  # Great steps @ sample rate 10: 1 (downwards push), 1050 (upwards push), 200 (no object movement), 800 (downwards push) 1350 (upwards push)
+
+        self.ignore_action = True
+        self.use_time_step = True 
 
         ###########################
         # Infilling parameters
         ###########################
         self.train_infill         = False
         self.test_infill          = False
+        self.complex_shape_infill = True
+        self.object_mask_infill   = False 
         self.min_infill_patch_size  = 1
-        self.max_infill_patch_size  = 64 #32
+        self.max_infill_patch_size  = 127 # 84 #32
 
-        self.repeatable_infil_y_pos      = 20 # 15
-        self.repeatable_infil_x_pos      = 20 # 15
-        self.repeatable_infil_patch_size = 84 # 25
+        self.repeatable_infil_y_pos      = 0 # 20 # 15
+        self.repeatable_infil_x_pos      = 0 # 20 # 15
+        self.repeatable_infil_patch_size = 128 # 84 # 25
 
         self.train_tactile_infill = False
         self.test_tactile_infill  = False

@@ -25,6 +25,8 @@ def create_rlds_dataset(folders, data_location):
             # xela_sensor = np.array(np.load(data_location + folder + '/tactile_states.npy'))
             image_data  = np.array(np.load(data_location + folder + '/color_images.npy'))
             robot_task_space = np.array(np.load(data_location + folder + '/robot_EE_states.npy'))
+            # object_class = np.load(data_location + folder + '/classification_bit.npy')
+
         except:
             print("Error loading data from folder: ", folder)
             continue
@@ -35,25 +37,25 @@ def create_rlds_dataset(folders, data_location):
         tactile_data = [[tactile_data_split[feature][ts] + tactile_offsets[feature] for feature in range(3)] for ts in range(tactile_data_split[0].shape[0])]
 
         raw = []
-        # for k in range(len(image_data)):
-        #     tmp = Image.fromarray(image_data[k])
-        #     tmp = tmp.resize((128, 128), Image.LANCZOS)
-        #     tmp = np.frombuffer(tmp.tobytes(), dtype=np.uint8)
-        #     tmp = tmp.reshape((128, 128, 3))
-        #     raw.append(tmp)
-
         for k in range(len(image_data)):
             tmp = Image.fromarray(image_data[k])
-            width, height = tmp.size
-            left   = width  / 4
-            top    = height / 4
-            right  = 3 * width  / 4
-            bottom = 3 * height / 4
-            tmp = tmp.crop((left, top, right, bottom))
             tmp = tmp.resize((128, 128), Image.LANCZOS)
             tmp = np.frombuffer(tmp.tobytes(), dtype=np.uint8)
             tmp = tmp.reshape((128, 128, 3))
             raw.append(tmp)
+
+        # for k in range(len(image_data)):
+        #     tmp = Image.fromarray(image_data[k])
+        #     width, height = tmp.size
+        #     left   = width  / 4
+        #     top    = height / 4
+        #     right  = 3 * width  / 4
+        #     bottom = 3 * height / 4
+        #     tmp = tmp.crop((left, top, right, bottom))
+        #     tmp = tmp.resize((128, 128), Image.LANCZOS)
+        #     tmp = np.frombuffer(tmp.tobytes(), dtype=np.uint8)
+        #     tmp = tmp.reshape((128, 128, 3))
+        #     raw.append(tmp)
 
         image_data = np.array(raw)
 
@@ -75,7 +77,8 @@ def create_rlds_dataset(folders, data_location):
                 'state':   robot_task_space[i].astype(np.float32),
                 'tactile': np.array(tactile_data[i]).astype(np.float32),
                 'action':  action.astype(np.float32),
-                'language_instruction': "None"
+                'language_instruction': "None",
+                # 'object_class': int(object_class[0])
             }
 
             episode_list.append(step)
@@ -96,13 +99,13 @@ def create_rlds_dataset(folders, data_location):
 
         np.save(data_location + "formatted_dataset/map.npy", map)
 
-# dataset_dirs = ["/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/train/",
-#                 "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/val/",
-#                 "/media/wmandil/Data/Robotics/Data_sets/Dataset3_MarkedHeavyBox/test_examples/"]
+# dataset_dirs = ["/media/wmandil/Data/Robotics/Data_sets/infilling_simple_005_6objs/train/",
+#                 "/media/wmandil/Data/Robotics/Data_sets/infilling_simple_005_6objs/val/",
+#                 "/media/wmandil/Data/Robotics/Data_sets/infilling_simple_005_6objs/test/"]
 
-dataset_dirs = ["/home/wmandil/robotics/datasets/infilling_simple_002_2cans/train/",
-                "/home/wmandil/robotics/datasets/infilling_simple_002_2cans/val/",
-                "/home/wmandil/robotics/datasets/infilling_simple_002_2cans/test/"]
+dataset_dirs = ["/home/wmandil/robotics/datasets/infilling_simple_005_new_set/train/",
+                "/home/wmandil/robotics/datasets/infilling_simple_005_new_set/val/",
+                "/home/wmandil/robotics/datasets/infilling_simple_005_new_set/test/"]
 
 for dataset_dir in dataset_dirs:
     create_rlds_dataset(folders=os.listdir(dataset_dir),  data_location=dataset_dir)

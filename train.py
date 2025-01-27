@@ -34,11 +34,13 @@ FLAGS = flags.FLAGS
 # flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
-flags.DEFINE_string ('test_version',             "testing...",   'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_string ('test_version',             "shapes-timesteps",        'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('train_infill',             True,           'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              True,           'Whether to infill or not')
 flags.DEFINE_boolean('train_tactile_infill',     True,           'Whether to infill or not')
 flags.DEFINE_boolean('test_tactile_infill',      False,          'Whether to infill or not')
+flags.DEFINE_boolean('complex_shape_infill',     True,           'Whether to infill or not')
+flags.DEFINE_boolean('object_mask_infill',       False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags
@@ -78,7 +80,7 @@ class VisionTactileDataset(Dataset):
 
         self.map_data = np.load(self.map_file, allow_pickle=True)
 
-        if config.debug:
+        if config.debug and train==True:
             self.map_data = self.map_data[:10]
 
         self.build_dataset()
@@ -89,11 +91,12 @@ class VisionTactileDataset(Dataset):
     def __getitem__(self, idx):
         if self.config.pre_load_data:
             start_index = self.sample_index_list[idx]
-            robot_state, image_data, tactile_data = [], [], []
+            robot_state, image_data, tactile_data, timstep_data = [], [], [], []
             for i in range(0, (self.context_len + self.prediction_horizon)*self.config.sample_rate, self.config.sample_rate):
                 step_data = self.data[start_index + i]
-                if self.config.action:      robot_state.append(step_data[0])
-                if self.config.image:       image_data.append(step_data[1].astype(np.float32) / 255)
+                if self.config.use_time_step: timstep_data.append(step_data[3])
+                if self.config.action:        robot_state.append(step_data[0])
+                if self.config.image:         image_data.append(step_data[1].astype(np.float32) / 255)
                 if self.config.tactile:
                     if self.config.use_all_tactile_samples == False:
                         tactile_sample_sequence = step_data[2].flatten()
@@ -114,14 +117,17 @@ class VisionTactileDataset(Dataset):
                 if self.config.image:       image_data.append(step_data[()]['image'].astype(np.float32) / 255)
                 if self.config.tactile:     tactile_data.append(step_data[()]['tactile'].astype(np.float32))
 
-        if self.config.action:   robot_state  = np.stack(robot_state, axis=0)    # shape is robot=[c+p, bs, 6]
-        if self.config.image:    image_data   = np.stack(image_data, axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
-        if self.config.tactile:  tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
+        if self.config.action:        robot_state  = np.stack(robot_state,  axis=0)    # shape is robot=[c+p, bs, 6]
+        if self.config.image:         image_data   = np.stack(image_data,   axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
+        if self.config.tactile:       tactile_data = np.stack(tactile_data, axis=0)   # shape is tactile=[c+p, bs, 48]
+        if self.config.use_time_step: timstep_data = np.stack(timstep_data, axis=0)  # shape is time=[c+p, bs, 1]
 
         # cut the action data to the size of action_dim
         if self.config.action:  robot_state = robot_state[:, :self.config.action_dim]
+        if self.config.ignore_action: robot_state = np.zeros_like(robot_state)
+        if self.config.use_time_step: robot_state = timstep_data[:, :self.config.action_dim]        #! over write the robot state with the object mask
 
-        return torch.tensor(robot_state), torch.tensor(image_data) , torch.tensor(tactile_data)
+        return torch.tensor(robot_state), torch.tensor(image_data), torch.tensor(tactile_data),
 
     def build_dataset(self):
         self.total_sequences = 0
@@ -145,14 +151,17 @@ class VisionTactileDataset(Dataset):
                     robot_state  = step_data[()]["state"]
                     image_data   = step_data[()]['image'].transpose(2, 0, 1)
                     tactile_data = step_data[()]['tactile']
+                    if self.config.use_time_step: time_step = np.ones_like(robot_state) * step_num  # ! create another channel for the time step with the same shape as the robot state
+                    else:                         time_step = np.zeros_like(robot_state)
                     if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
                         self.sample_index_list += [current_index]
                     current_index += 1
-                    self.data.append([robot_state, image_data, tactile_data])
+                    self.data.append([robot_state, image_data, tactile_data, time_step])
 
         if self.config.scale_data:
             tactile_data     = np.array([i[2] for i in self.data])
             robot_state_data = np.array([i[0] for i in self.data])
+            time_step_data   = np.array([i[3] for i in self.data])
 
             # Create MinMaxScaler instances for each axis
             if self.train == True:
@@ -187,6 +196,10 @@ class VisionTactileDataset(Dataset):
             # train_utils.viz_robot_state_histogram(robot_state_data)
             train_utils.viz_tactile_histogram(tactile_data)
 
+            # find the max value for time_step data (min will be 0)
+            self.time_step_max = np.max(time_step_data)
+            time_step_data = time_step_data / self.time_step_max
+
             name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]
             import matplotlib.pyplot as plt
             fig, ax = plt.subplots(1, len(name), figsize=(12, 12))
@@ -202,6 +215,7 @@ class VisionTactileDataset(Dataset):
             for i in range(len(self.data)):
                 self.data[i][2] = tactile_data[i]
                 self.data[i][0] = robot_state_data[i]
+                self.data[i][3] = time_step_data[i]
 
             if self.train:
                 os.makedirs(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id), exist_ok=True)
@@ -210,6 +224,7 @@ class VisionTactileDataset(Dataset):
                 joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
                 joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
                 joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
+                joblib.dump(self.time_step_max,      os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "time_step_max.pkl"))
 
 def main(argv):
     ###########################
@@ -259,13 +274,16 @@ def main(argv):
 
     if FLAGS.train_infill:    config.train_infill   = FLAGS.train_infill
     if FLAGS.test_infill:     config.test_infill    = FLAGS.test_infill
-    if config.train_infill: config.model_name += "-trn inf"
-    if config.test_infill:  config.model_name += "-tst inf"
+    # if config.train_infill: config.model_name += "-trn inf"
+    # if config.test_infill:  config.model_name += "-tst inf"
 
     if FLAGS.train_tactile_infill:    config.train_tactile_infill   = FLAGS.train_tactile_infill
     if FLAGS.test_tactile_infill:     config.test_tactile_infill    = FLAGS.test_tactile_infill
-    if config.train_tactile_infill: config.model_name += "-trn tac inf"
-    if config.test_tactile_infill:  config.model_name += "-tst tac inf"
+    # if config.train_tactile_infill: config.model_name += "-trn tac inf"
+    # if config.test_tactile_infill:  config.model_name += "-tst tac inf"
+
+    if FLAGS.complex_shape_infill:    config.complex_shape_infill   = FLAGS.complex_shape_infill
+    if FLAGS.object_mask_infill:      config.object_mask_infill     = FLAGS.object_mask_infill
 
     if FLAGS.use_all_tactile_samples: 
         config.use_all_tactile_samples = True
@@ -388,7 +406,7 @@ def main(argv):
             for i, batch in enumerate(viz_dataloader):
                 if i not in config.viz_steps:  continue
                 (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
-                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context, tactile_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True)
+                loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context, tactile_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True, step=i)
                 if config.image:
                     train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
                     image_loss_list.append(image_losses.item())

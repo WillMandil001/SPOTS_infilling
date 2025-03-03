@@ -242,7 +242,9 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
             image_predict = batch[1][:,  config.context_length:, ...].to(config.device)   # take just the last image             shape = [bs, p,     64, 64, 3])
             if config.test_infill:
                 if config.complex_shape_infill:
-                        image_context = add_complex_occlusions(image_context, config, repeatable_infill=repeatable_infill, step=step)
+                    image_context = add_complex_occlusions(image_context, config, repeatable_infill=repeatable_infill, step=step)
+                elif config.object_mask_infill:
+                    image_context = add_real_masks(image_context, config, mask_directory=config.mask_directory)
                 else:
                     if repeatable_infill:
                         x = config.repeatable_infil_x_pos
@@ -604,73 +606,6 @@ def add_complex_occlusions(
 
     occluded = image_context * (~final_mask) + color_bcast * final_mask
     return occluded
-
-
-
-# def add_complex_occlusions(image_context, config, repeatable_infill=False, step=0):
-#     device = image_context.device  # Get the device (CPU or GPU) of the input tensor
-
-#     # Seed the random generator for repeatability if needed
-#     if repeatable_infill:
-#         torch.manual_seed(step)
-#         x = config.repeatable_infil_x_pos
-#         y = config.repeatable_infil_y_pos
-#         infill_patch_size = config.repeatable_infil_patch_size
-#     else:
-#         infill_patch_size = torch.randint(config.min_infill_patch_size, config.max_infill_patch_size, (1,), device=device).item()
-#         x = torch.randint(0, config.image_height - infill_patch_size, (1,), device=device).item()
-#         y = torch.randint(0, config.image_width - infill_patch_size, (1,), device=device).item()
-
-#     # Generate a blank canvas (tensor filled with zeros)
-#     canvas = torch.zeros((config.image_height, config.image_width, image_context.shape[1]), device=device, dtype=image_context.dtype)
-
-#     # Choose a random color
-#     color = torch.randint(0, 256, (image_context.shape[1],), device=device, dtype=image_context.dtype)
-
-#     # Choose a shape type
-#     shape_type = torch.randint(0, 5, (1,), device=device).item()  # 0=rectangle, 1=ellipse, 2=polygon, etc.
-
-#     if shape_type == 0:  # Rectangle
-#         x2 = x + infill_patch_size
-#         y2 = y + infill_patch_size
-#         for c in range(canvas.shape[2]):
-#             canvas[y:y2, x:x2, c] = color[c]
-#     elif shape_type == 1:  # Ellipse
-#         yy, xx = torch.meshgrid(torch.arange(0, config.image_height, device=device), torch.arange(0, config.image_width, device=device), indexing='ij')
-#         center_y, center_x = y + infill_patch_size // 2, x + infill_patch_size // 2
-#         axes_y, axes_x = int(infill_patch_size // 4 * 1.2), int(infill_patch_size // 2 * 1.2)  # Increase size by 20%
-#         ellipse_mask = (((yy - center_y) / axes_y) ** 2 + ((xx - center_x) / axes_x) ** 2) <= 1
-#         for c in range(canvas.shape[2]):
-#             canvas[..., c][ellipse_mask] = color[c]
-#     elif shape_type == 2:  # Polygon (triangle for simplicity)
-#         points = torch.tensor([[x, y], [x + infill_patch_size, y], [x + infill_patch_size // 2, y + infill_patch_size]], device=device)
-#         x_min, y_min = torch.min(points, dim=0).values
-#         x_max, y_max = torch.max(points, dim=0).values
-#         for c in range(canvas.shape[2]):
-#             canvas[y_min:y_max, x_min:x_max, c] = color[c]
-#     elif shape_type == 3:  # Line
-#         x2 = x + infill_patch_size
-#         y2 = y + infill_patch_size
-#         thickness = torch.randint(1, 5, (1,), device=device).item()
-#         for c in range(canvas.shape[2]):
-#             canvas[y:y + thickness, x:x + thickness, c] = color[c]
-#     elif shape_type == 4:  # Star (approximate with a circular region for simplicity)
-#         radius = int(infill_patch_size // 2 * 1.2)  # Increase size by 20%
-#         yy, xx = torch.meshgrid(torch.arange(0, config.image_height, device=device), torch.arange(0, config.image_width, device=device), indexing='ij')
-#         star_mask = ((yy - (y + radius)) ** 2 + (xx - (x + radius)) ** 2) <= radius ** 2
-#         for c in range(canvas.shape[2]):
-#             canvas[..., c][star_mask] = color[c]
-
-#     # Reshape canvas to match the dimensions of image_context
-#     canvas = canvas.permute(2, 0, 1).unsqueeze(0).unsqueeze(2)  # Shape: [1, Channels, 1, Height, Width]
-
-#     # Rescale the canvas values to [0, 1] for compatibility with image context
-#     canvas = canvas / 255.0 if image_context.dtype.is_floating_point else canvas.clamp(0, 255)
-
-#     # Apply the canvas to the image context
-#     image_context = image_context * (canvas == 0) + canvas
-
-#     return image_context
 
 
 def add_real_masks(image_context, config, mask_directory):

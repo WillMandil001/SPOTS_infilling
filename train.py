@@ -43,6 +43,9 @@ flags.DEFINE_boolean('complex_shape_infill',     True,           'Whether to inf
 flags.DEFINE_boolean('object_mask_infill',       False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
+# tactile sensor format types:
+flags.DEFINE_boolean('tactile_sensor',           "Gelsight",          'Gelsight or Xela')
+
 # training flags
 flags.DEFINE_integer('num_steps',                0,        'set to 0 to use the configs num_steps') 
 
@@ -262,6 +265,8 @@ def main(argv):
         config.model_name      = "SVG"
         config.action, config.tactile = True, False
 
+    if config.tactile_sensor == None: config.tactile_sensor = FLAGS.tactile_sensor
+
     if FLAGS.pretrained:         config.pretrained_model_path, config.pretrained_config_path                         = FLAGS.pretrained_model_path, FLAGS.pretrained_config_path
     if FLAGS.pretrained_enc:     config.load_pretrained_image_model, config.freeze_image_model                       = FLAGS.pretrained_enc, FLAGS.pretrained_enc_frozen
     if FLAGS.pretrained_ac_enc:  config.load_pretrained_ac_image_model, config.freeze_ac_image_model, config.action  = FLAGS.pretrained_ac_enc, FLAGS.pretrained_ac_enc_frozen, True
@@ -313,16 +318,16 @@ def main(argv):
     ###########################
     # Load the dataset  | load the tfrecords RLDS dataset saved locally at: /home/wmandil/tensorflow_datasets/robot_pushing_dataset/1.0.0
     ###########################
-    train_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length,  prediction_horizon=config.num_frames - config.context_length, train=True)
+    train_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length,  prediction_horizon=config.num_frames - config.context_length, train=True, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False)
+    val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
+    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
     viz_dataloader = DataLoader(viz_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
-    test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_test_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
+    test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_test_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
     ###########################

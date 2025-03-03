@@ -83,13 +83,14 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug             = False
-        self.cluster           = False
-        self.pre_load_data     = True
-        self.preload_data_gpu  = False
+        self.debug              = False
+        self.cluster            = False
+        self.pre_load_data      = True
+        self.preload_data_gpu   = False
         self.classification_bit = False
         self.num_classes        = 5
-        self.model_type        = ""
+        self.model_type         = ""
+        self.tactile_sensor     = None
 
         self.dataset_to_use = "infilling_simple_005_new_set"  # robot_pushing, robot_pushing_edge_case, infilling_simple_001_spam, infilling_simple_002_2cans, infilling_simple_003_10objs, infilling_simple_005_6objs
 
@@ -165,8 +166,9 @@ class Config:
         ###########################
         self.train_infill         = False
         self.test_infill          = False
-        self.complex_shape_infill = True
-        self.object_mask_infill   = False 
+        self.complex_shape_infill = False #! the current one for testing :D 
+        self.object_mask_infill   = True
+        self.mask_directory       = ""
         self.min_infill_patch_size  = 1
         self.max_infill_patch_size  = 127 # 84 #32
 

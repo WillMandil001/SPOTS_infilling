@@ -10,8 +10,9 @@ import torch.nn as nn
 import train_utils
 from config.config_base_model import Config, model_config_builder_transformer, model_config_builder_actp, model_config_builder_svg
 
-# # models
+# models
 from model_set.transformer import VPGPT
+from model_set_gel_sight.transformer import VPGPT as VPGPT_gelsight
 from model_set.SPOTS_SVG_ACTP_SOP import Model as SPOTS_SVG_ACTP_SOP
 from model_set.SPOTS_SVG_ACTP import Model as SPOTS_SVG_ACTP
 from model_set.SVG import Model as SVG
@@ -24,6 +25,10 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 # data logging and visualization
 from absl import app, logging, flags
 
+# s = 32
+# dev = torch.device('cuda')
+# torch.nn.functional.conv2d(torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev))
+
 ###########################
 # Set up the Flags for the training
 ###########################
@@ -34,17 +39,14 @@ FLAGS = flags.FLAGS
 # flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
-flags.DEFINE_string ('test_version',             "shapes-timesteps",        'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_string ('test_version',             "shapes-timesteps -GS",        'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('train_infill',             True,           'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              True,           'Whether to infill or not')
-flags.DEFINE_boolean('train_tactile_infill',     True,           'Whether to infill or not')
+flags.DEFINE_boolean('train_tactile_infill',     False,          'Whether to infill or not')  #! must set this to False when using the GelSight sensor
 flags.DEFINE_boolean('test_tactile_infill',      False,          'Whether to infill or not')
 flags.DEFINE_boolean('complex_shape_infill',     True,           'Whether to infill or not')
 flags.DEFINE_boolean('object_mask_infill',       False,          'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
-
-# tactile sensor format types:
-flags.DEFINE_boolean('tactile_sensor',           "Gelsight",          'Gelsight or Xela')
 
 # training flags
 flags.DEFINE_integer('num_steps',                0,        'set to 0 to use the configs num_steps') 
@@ -100,7 +102,9 @@ class VisionTactileDataset(Dataset):
                 if self.config.use_time_step: timstep_data.append(step_data[3])
                 if self.config.action:        robot_state.append(step_data[0])
                 if self.config.image:         image_data.append(step_data[1].astype(np.float32) / 255)
-                if self.config.tactile:
+                if self.config.tactile and self.config.GELSIGHT:
+                    tactile_data.append(step_data[2].astype(np.float32) / 255)
+                if self.config.tactile and self.config.XELA:
                     if self.config.use_all_tactile_samples == False:
                         tactile_sample_sequence = step_data[2].flatten()
                         tactile_data.append(tactile_sample_sequence)
@@ -116,9 +120,11 @@ class VisionTactileDataset(Dataset):
             robot_state, image_data, tactile_data  = [], [], []
             for save_name in steps:
                 step_data = np.load(save_name, allow_pickle=True)
-                if self.config.action:      robot_state.append(step_data[()]["state"].astype(np.float32))
-                if self.config.image:       image_data.append(step_data[()]['image'].astype(np.float32) / 255)
-                if self.config.tactile:     tactile_data.append(step_data[()]['tactile'].astype(np.float32))
+                if self.config.action:       robot_state.append(step_data[()]["state"].astype(np.float32))
+                if self.config.image:        image_data.append(step_data[()]['image'].astype(np.float32) / 255)
+                if self.config.tactile:     
+                    if self.config.GELSIGHT: tactile_data.append(step_data[()]['tactile'].astype(np.float32) / 255)
+                    elif self.config.XELA:   tactile_data.append(step_data[()]['tactile'].astype(np.float32))
 
         if self.config.action:        robot_state  = np.stack(robot_state,  axis=0)    # shape is robot=[c+p, bs, 6]
         if self.config.image:         image_data   = np.stack(image_data,   axis=0)     # shape is images=[c+p, bs, 64,64,3] we need to flip the channels so that its [bs, c+p, 3, 64, 64] (done in the return)
@@ -153,7 +159,9 @@ class VisionTactileDataset(Dataset):
                     step_data = np.load(save_name, allow_pickle=True)
                     robot_state  = step_data[()]["state"]
                     image_data   = step_data[()]['image'].transpose(2, 0, 1)
-                    tactile_data = step_data[()]['tactile']
+                    if self.config.XELA:       tactile_data = step_data[()]['tactile']
+                    elif self.config.GELSIGHT: tactile_data = step_data[()]['tactile'].transpose(2, 0, 1)
+    
                     if self.config.use_time_step: time_step = np.ones_like(robot_state) * step_num  # ! create another channel for the time step with the same shape as the robot state
                     else:                         time_step = np.zeros_like(robot_state)
                     if episode_length - step_num >= (self.context_len + self.prediction_horizon - 1)*self.config.sample_rate:
@@ -162,33 +170,36 @@ class VisionTactileDataset(Dataset):
                     self.data.append([robot_state, image_data, tactile_data, time_step])
 
         if self.config.scale_data:
-            tactile_data     = np.array([i[2] for i in self.data])
+            if self.config.XELA: tactile_data     = np.array([i[2] for i in self.data])
             robot_state_data = np.array([i[0] for i in self.data])
             time_step_data   = np.array([i[3] for i in self.data])
 
             # Create MinMaxScaler instances for each axis
             if self.train == True:
-                self.tactile_scaler_x   = MinMaxScaler(feature_range=(0, 1))
-                self.tactile_scaler_y   = MinMaxScaler(feature_range=(0, 1))
-                self.tactile_scaler_z   = MinMaxScaler(feature_range=(0, 1))
+                if self.config.XELA: 
+                    self.tactile_scaler_x   = MinMaxScaler(feature_range=(0, 1))
+                    self.tactile_scaler_y   = MinMaxScaler(feature_range=(0, 1))
+                    self.tactile_scaler_z   = MinMaxScaler(feature_range=(0, 1))
                 self.robot_state_norm   = StandardScaler()
                 self.robot_state_scaler = MinMaxScaler(feature_range=(0, 1))
             else: # load the scalars from the save_dir:
-                self.tactile_scaler_x   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                self.tactile_scaler_y   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                self.tactile_scaler_z   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
+                if self.config.XELA: 
+                    self.tactile_scaler_x   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
+                    self.tactile_scaler_y   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
+                    self.tactile_scaler_z   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
                 self.robot_state_norm   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
                 self.robot_state_scaler = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
 
             # Fit the scalers on the corresponding slices of the tactile data
-            self.tactile_scaler_x.fit(tactile_data[:, 0, :])
-            self.tactile_scaler_y.fit(tactile_data[:, 1, :])
-            self.tactile_scaler_z.fit(tactile_data[:, 2, :])
+            if self.config.XELA:
+                self.tactile_scaler_x.fit(tactile_data[:, 0, :])
+                self.tactile_scaler_y.fit(tactile_data[:, 1, :])
+                self.tactile_scaler_z.fit(tactile_data[:, 2, :])
 
-            # Transform the data (tactile)
-            tactile_data[:, 0, :] = self.tactile_scaler_x.transform(tactile_data[:, 0, :])
-            tactile_data[:, 1, :] = self.tactile_scaler_y.transform(tactile_data[:, 1, :])
-            tactile_data[:, 2, :] = self.tactile_scaler_z.transform(tactile_data[:, 2, :])
+                # Transform the data (tactile)
+                tactile_data[:, 0, :] = self.tactile_scaler_x.transform(tactile_data[:, 0, :])
+                tactile_data[:, 1, :] = self.tactile_scaler_y.transform(tactile_data[:, 1, :])
+                tactile_data[:, 2, :] = self.tactile_scaler_z.transform(tactile_data[:, 2, :])
 
             # normalise then scale the data (action) - we have to do this in two steps
             self.robot_state_norm.fit(robot_state_data)
@@ -197,7 +208,7 @@ class VisionTactileDataset(Dataset):
             robot_state_data      = self.robot_state_scaler.transform(robot_state_data)
 
             # train_utils.viz_robot_state_histogram(robot_state_data)
-            train_utils.viz_tactile_histogram(tactile_data)
+            if self.config.XELA: train_utils.viz_tactile_histogram(tactile_data)
 
             # find the max value for time_step data (min will be 0)
             self.time_step_max = np.max(time_step_data)
@@ -216,15 +227,16 @@ class VisionTactileDataset(Dataset):
             plt.savefig("robot_state_histogram.png")
 
             for i in range(len(self.data)):
-                self.data[i][2] = tactile_data[i]
+                if self.config.XELA: self.data[i][2] = tactile_data[i]
                 self.data[i][0] = robot_state_data[i]
                 self.data[i][3] = time_step_data[i]
 
             if self.train:
                 os.makedirs(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id), exist_ok=True)
-                joblib.dump(self.tactile_scaler_x,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                joblib.dump(self.tactile_scaler_y,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
+                if self.config.XELA: 
+                    joblib.dump(self.tactile_scaler_x,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
+                    joblib.dump(self.tactile_scaler_y,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
+                    joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
                 joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
                 joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
                 joblib.dump(self.time_step_max,      os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "time_step_max.pkl"))
@@ -264,8 +276,6 @@ def main(argv):
         print("setting model to SVG version")
         config.model_name      = "SVG"
         config.action, config.tactile = True, False
-
-    if config.tactile_sensor == None: config.tactile_sensor = FLAGS.tactile_sensor
 
     if FLAGS.pretrained:         config.pretrained_model_path, config.pretrained_config_path                         = FLAGS.pretrained_model_path, FLAGS.pretrained_config_path
     if FLAGS.pretrained_enc:     config.load_pretrained_image_model, config.freeze_image_model                       = FLAGS.pretrained_enc, FLAGS.pretrained_enc_frozen
@@ -318,33 +328,43 @@ def main(argv):
     ###########################
     # Load the dataset  | load the tfrecords RLDS dataset saved locally at: /home/wmandil/tensorflow_datasets/robot_pushing_dataset/1.0.0
     ###########################
-    train_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length,  prediction_horizon=config.num_frames - config.context_length, train=True, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
+    train_dataset = VisionTactileDataset(config=config, map_file=config.dataset_train_dir + "map.npy", context_len=config.context_length,  prediction_horizon=config.num_frames - config.context_length, train=True)
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
-    val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
+    #!!!!!!! make sure to replace dataset_test_dir with dataset_val_dir when not using the test dataset !!!!!!!
+    if config.dataset_to_use == "infilling_simple_001_gelsight": 
+        config.dataset_val_dir = config.dataset_test_dir
+        val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False)
+        val_dataloader = DataLoader(val_dataset, batch_size=5, shuffle=False, num_workers=config.num_workers)
+    else:
+        val_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.num_frames - config.context_length, train=False)
+        val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
-    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
+    viz_dataset = VisionTactileDataset(config=config, map_file=config.dataset_val_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
     viz_dataloader = DataLoader(viz_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
-    test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_test_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False, tactile_sensor=config.tactile_sensor, wandb_id=wandb_id)
+    test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_test_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
 
     ###########################
     # Load the model and optimizer
     ###########################
     if FLAGS.model_type == "transformer":
-        model = VPGPT(config.model_config).to(config.device)
+        if config.XELA:     model = VPGPT(config.model_config).to(config.device)
+        if config.GELSIGHT: model = VPGPT_gelsight(config.model_config).to(config.device)
         scaler = torch.cuda.amp.GradScaler(enabled=(config.dtype == 'float16'))
         optimizer = model.configure_optimizers(config.weight_decay, config.learning_rate, (config.beta1, config.beta2), config.device)
         plot = model.get_attention_mask()  # returns a matplotlib plot of the attention mask
 
     if FLAGS.model_type == "SVG":
+        if config.GELSIGHT: 
+            logging.warning("SVG model cannot be used with Gelsight data, please use the SVG-ACTP model instead")
+            exit()
         if config.model_name == "SVG":             model = SVG(config.model_config).to(config.device)
         elif config.model_name == "SVG-ACTP":      model = SPOTS_SVG_ACTP(config.model_config).to(config.device)
         elif config.model_name == "SVG-ACTP-SOP":  model = SPOTS_SVG_ACTP_SOP(config.model_config).to(config.device)
         model.initialise_model()
-        
+
     if   config.criterion == "MAE":  criterion = nn.L1Loss()
     elif config.criterion == "MSE":  criterion = nn.MSELoss()
 
@@ -413,13 +433,16 @@ def main(argv):
                 (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
                 loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context, tactile_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True, step=i)
                 if config.image:
-                    train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
+                    if not config.GELSIGHT: #! we do a combined viz for the Gelsight data that includes the image and tactile data in the same figure
+                        train_utils.viz_image_figure(image_groundtruth, rollout_image_prediction, image_context, config, step, step_name=i)
                     image_loss_list.append(image_losses.item())
                     loss_sequences_image.append(loss_sequence_image)
                     combined_losses.append(combined_total_loss.item())
                     loss_sequences_combined.append(loss_sequence_combined)
                 if config.tactile:
-                    train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
+                    if config.XELA: train_utils.viz_tactile_figure(tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
+                    if config.GELSIGHT: train_utils.viz_tactile_figure_gelsight(image_groundtruth, rollout_image_prediction, image_context, tactile_groundtruth, rollout_tactile_prediction, tactile_context, config, step, step_name=i)
+
                     tactile_loss_list.append(tactile_losses.item())
                     loss_sequences_tactile.append(loss_sequence_tactile)
 

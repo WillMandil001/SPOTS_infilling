@@ -105,10 +105,58 @@ def viz_image_figure(ground_truth, predicted_frames, input_frames, config, step,
 
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
-    plt.savefig(f"temp{step_name}.png")
+    # plt.savefig(f"temp{step_name}.png")
     # plt.close()
 
     wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
+    plt.close(fig)
+
+def viz_image_figure_gelsight(ground_truth, predicted_frames, input_frames, config, step, step_name):
+    if len(predicted_frames.shape) == 5: predicted_frames = predicted_frames.squeeze()
+
+    if config.prediction_horizon > 20:
+        sample_rate = config.prediction_horizon // 20
+    else:
+        sample_rate = 1
+    
+    if config.dataset_to_use == "robot_pushing_edge_case": fig = plt.figure(figsize=(config.prediction_horizon * 2, 5))
+    elif config.dataset_to_use == "robot_pushing":         fig = plt.figure(figsize=(config.prediction_horizon * 0.25, 5))
+    else:                                                  fig = plt.figure(figsize=(config.prediction_horizon * 2, 5))
+
+    num_images_per_row = min(config.prediction_horizon, 20)
+    if config.test_infill: gs = GridSpec(3, num_images_per_row, figure=fig)
+    else:                  gs = GridSpec(2, num_images_per_row, figure=fig)
+
+    index = 0
+    for j in range(sample_rate - 1, config.prediction_horizon, sample_rate):
+        if config.test_infill: ax = fig.add_subplot(gs[1, index])
+        else:                     ax = fig.add_subplot(gs[0, index])
+        ax.imshow(ground_truth[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+        ax.axis('off')
+        ax.set_title(f"GT {j + 1}")
+        if config.test_infill: ax = fig.add_subplot(gs[2, index])
+        else:                     ax = fig.add_subplot(gs[1, index])
+        ax.imshow(predicted_frames[j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+        ax.axis('off')
+        ax.set_title(f"Pred {j + 1}")
+        index += 1
+
+    if config.test_infill:
+        for j in range(input_frames.shape[1]):
+            ax = fig.add_subplot(gs[0, j])
+            ax.imshow(input_frames[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+            ax.axis('off')
+            ax.set_title(f"Input {j + 1}")
+
+    # write self.config.model_name on the figure at the top
+    fig.text(0.5, 0.95, config.model_name, ha='center', va='center', fontsize=16)
+
+    plt.tight_layout()
+    plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
+    # plt.savefig(f"temp{step_name}.png")
+    # plt.close()
+
+    wandb.log({"viz_gelsight_{}".format(step_name): wandb.Image(fig)}, step=step)
     plt.close(fig)
 
 def viz_tactile_figure(ground_truth_tactile, predicted_frames_tactile, tactile_context, config, step, step_name):        # we want to plot each of the 16 features in a 4x4 grid over the ts frames:
@@ -228,6 +276,83 @@ def viz_robot_state_histogram(robot_state_data):
     plt.tight_layout()
     wandb.log({"robot_state_histogram": wandb.Image(plt)}, step=0)
     plt.close()
+
+def viz_tactile_figure_gelsight(ground_truth_image, predicted_frames_image, input_frames_image, ground_truth_tactile, predicted_frames_tactile, input_frames_tactile, config, step, step_name):
+    # Squeeze predicted frames if they have an extra dimension
+    if len(predicted_frames_image.shape)   == 5: predicted_frames_image = predicted_frames_image.squeeze()
+    if len(predicted_frames_tactile.shape) == 5: predicted_frames_tactile = predicted_frames_tactile.squeeze()
+
+    # Determine sample rate based on prediction horizon
+    if config.prediction_horizon > 20:  sample_rate = config.prediction_horizon // 20
+    else:                               sample_rate = 1
+
+    # Set up the figure dimensions and GridSpec layout
+    if config.test_infill:
+        num_input_frames = input_frames_image.shape[1]
+        num_predicted_frames = min(config.prediction_horizon, 20)
+        num_images_per_row = max(num_input_frames, num_predicted_frames)
+        num_rows = 6  # Rows: Input Img, Input Tac, GT Img, GT Tac, Pred Img, Pred Tac
+    else:
+        num_predicted_frames = min(config.prediction_horizon, 20)
+        num_images_per_row = num_predicted_frames
+        num_rows = 4  # Rows: GT Img, GT Tac, Pred Img, Pred Tac
+
+    fig_width = num_images_per_row * 1.5
+    fig_height = num_rows * 2
+    fig = plt.figure(figsize=(fig_width, fig_height))
+    gs = GridSpec(num_rows, num_images_per_row, figure=fig)
+
+    # Plot input frames if test_infill is True
+    if config.test_infill:
+        for j in range(min(num_input_frames, num_images_per_row)):
+            # Input image
+            ax = fig.add_subplot(gs[0, j])
+            ax.imshow(input_frames_image[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+            ax.axis('off')
+            ax.set_title(f"Input Img {j + 1}")
+            # Input tactile
+            ax = fig.add_subplot(gs[1, j])
+            ax.imshow(input_frames_tactile[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+            ax.axis('off')
+            ax.set_title(f"Input Tac {j + 1}")
+
+    # Plot ground truth and predicted frames
+    index = 0
+    for j in range(sample_rate - 1, config.prediction_horizon, sample_rate):
+        if index >= num_images_per_row:
+            break  # Avoid exceeding the number of columns
+        row_offset = 2 if config.test_infill else 0
+        # Ground truth image
+        ax = fig.add_subplot(gs[row_offset + 0, index])
+        ax.imshow(ground_truth_image[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+        ax.axis('off')
+        ax.set_title(f"GT Img {j + 1}")
+        # Predicted image
+        ax = fig.add_subplot(gs[row_offset + 1, index])
+        ax.imshow(predicted_frames_image[j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+        ax.axis('off')
+        ax.set_title(f"Pred Img {j + 1}")
+        # Ground truth tactile
+        ax = fig.add_subplot(gs[row_offset + 2, index])
+        ax.imshow(ground_truth_tactile[0][j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+        ax.axis('off')
+        ax.set_title(f"GT Tac {j + 1}")
+        # Predicted tactile
+        ax = fig.add_subplot(gs[row_offset + 3, index])
+        ax.imshow(predicted_frames_tactile[j].permute(1, 2, 0).cpu().numpy()[..., ::-1])
+        ax.axis('off')
+        ax.set_title(f"Pred Tac {j + 1}")
+        index += 1
+
+    # plt.tight_layout()
+    # plt.subplots_adjust(wspace=0.1, hspace=0.1)  # Adjust the wspace and hspace to fine-tune the gaps
+    # plt.savefig("mixedtemp1.png")
+    # plt.close()
+
+    # Log the figure to Weights & Biases
+    wandb.log({"viz_{}".format(step_name): wandb.Image(fig)}, step=step)
+    plt.close(fig)
+
 
 ###########################
 #

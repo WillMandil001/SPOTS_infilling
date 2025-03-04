@@ -56,6 +56,7 @@ def create_rlds_dataset(folders, data_location, gelsight=False):
             tmp = tmp.reshape((128, 128, 3))
             raw.append(tmp)
 
+        # raw = []
         # for k in range(len(image_data)):
         #     tmp = Image.fromarray(image_data[k])
         #     width, height = tmp.size

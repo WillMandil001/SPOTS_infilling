@@ -177,7 +177,6 @@ def create_rlds_dataset(tactile_data, vision_data, data_location):
     np.save(data_location + "formatted_dataset/map.npy", map)
 
 # set the location of the dataset
-dataset_location         = "/media/wmandil/Data/Robotics/Data_sets/infilling_simple_001_gelsight"
 
 dataset_location         = "/media/wmandil/Data/Robotics/Data_sets/VisGel/data/data_unseen/images/"
 dataset_location_tactile = dataset_location + "touch/"

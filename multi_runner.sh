@@ -1,7 +1,7 @@
 #!/bin/bash
 
 python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VTGPT"
-python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VGPT"
+# python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VGPT"
 
 
 # test with pre-trained tokenizer

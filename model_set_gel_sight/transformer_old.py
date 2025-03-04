@@ -85,12 +85,11 @@ class CausalSelfAttention(nn.Module):
 				self.maskarray = self.maskarray.to(config.device)
 				self.maskarray = self.maskarray.type(torch.bool)
 
-			if config.action == True and config.tactile == True:
+			if config.action == False and config.tactile == True:
 				context_length = config.context_length
 				num_frames = config.num_frames
 				patches_per_frame = config.patches_per_frame
 				patches_per_tactile_frame = config.patches_per_tactile_frame
-				patches_per_action_frame = config.patches_per_action_frame
 
 				maskimage = torch.zeros(context_length * patches_per_frame, context_length * patches_per_frame)
 				for i in range(context_length):
@@ -98,6 +97,7 @@ class CausalSelfAttention(nn.Module):
 					maskimage[start_row:end_row, :end_row] = 1
 				image_maskarray = maskimage.type(torch.bool)
 				image_maskarray_copy = image_maskarray.clone()
+				
 				# 2: image - tactile
 				tactile_maskarray = torch.zeros(context_length * patches_per_frame, context_length * patches_per_tactile_frame)
 				for i in range(context_length):
@@ -105,14 +105,7 @@ class CausalSelfAttention(nn.Module):
 					tactile_maskarray[start_row * patches_per_frame:end_row * patches_per_frame, :end_row*patches_per_tactile_frame] = 1
 				tactile_maskarray = tactile_maskarray.type(torch.bool)
 
-				# 3: image - action
-				# action_maskarray = torch.ones(context_length * patches_per_frame, num_frames)
-				action_maskarray = torch.zeros(context_length * patches_per_frame, (context_length+1) * patches_per_action_frame)
-				for i in range(context_length):
-					start_row, end_row = i, (i + 2)
-					action_maskarray[start_row * patches_per_frame:end_row * patches_per_frame, :(end_row*patches_per_action_frame)] = 1
-
-				mask_array1 = torch.cat([action_maskarray, tactile_maskarray, image_maskarray], axis = 1)
+				mask_array1 = torch.cat([tactile_maskarray, image_maskarray], axis = 1)
 
 				##### tactile queries
 				# 4. tactile - images
@@ -129,40 +122,10 @@ class CausalSelfAttention(nn.Module):
 					tactile_maskarray[start_row * patches_per_tactile_frame:end_row * patches_per_tactile_frame, :end_row * patches_per_tactile_frame] = 1
 				tactile_maskarray = tactile_maskarray.type(torch.bool)
 
-				# 6. tactile queries - action keys
-				action_maskarray = torch.zeros(context_length * patches_per_tactile_frame, (context_length + 1) * patches_per_action_frame)
-				for i in range(context_length):
-					start_row, end_row = i, (i + 2)
-					action_maskarray[start_row * patches_per_tactile_frame:end_row * patches_per_tactile_frame, :(end_row*patches_per_action_frame)] = 1
-
-				mask_array2 = torch.cat([action_maskarray, tactile_maskarray, image_maskarray], axis = 1)
-
-				##### action queries
-				# 7 action - image
-				image_maskarray = torch.zeros((context_length+1) * patches_per_action_frame, context_length * patches_per_frame)
-				for i in range(context_length+1):
-					start_row, end_row = i, (i + 1)
-					image_maskarray[start_row*patches_per_action_frame:end_row*patches_per_action_frame, :end_row * patches_per_frame] = 1
-				image_maskarray = image_maskarray.type(torch.bool)
-
-				# 8 action - tactile
-				tactile_maskarray = torch.zeros((context_length+1) * patches_per_action_frame, context_length*patches_per_tactile_frame)
-				for i in range(context_length+1):
-					start_row, end_row = i, (i + 1)
-					tactile_maskarray[start_row*patches_per_action_frame:end_row*patches_per_action_frame, :end_row*patches_per_tactile_frame] = 1
-				tactile_maskarray = tactile_maskarray.type(torch.bool)
-
-				# 9 action - action
-				actionaction_maskarray = torch.zeros((context_length+1)*patches_per_action_frame, (context_length+1)*patches_per_action_frame)
-				for i in range(0, context_length+1):
-					start_row, end_row = i, (i + 2)
-					actionaction_maskarray[start_row*patches_per_action_frame:end_row*patches_per_action_frame, :end_row*patches_per_action_frame] = 1
-
-				# 10 combine all the masks
-				mask_array3 = torch.cat([actionaction_maskarray, tactile_maskarray, image_maskarray], axis = 1)
+				mask_array2 = torch.cat([tactile_maskarray, image_maskarray], axis = 1)
 
 				# 11 combine all the masks 
-				self.maskarray = torch.cat([mask_array3, mask_array2, mask_array1], axis = 0)
+				self.maskarray = torch.cat([mask_array2, mask_array1], axis = 0)
 				self.maskarray = self.maskarray.to(config.device)
 				self.maskarray = self.maskarray.type(torch.bool)
 
@@ -225,6 +188,9 @@ class CausalSelfAttention(nn.Module):
 		# Remove the actual tick lines for the labeled ticks
 		plt.tick_params(axis='x', which='major', length=0)
 		plt.tick_params(axis='y', which='major', length=0)
+
+		# save the plot
+		plt.savefig('attention_mask.png', dpi=300)
 
 		return plt
 
@@ -296,52 +262,24 @@ class VPGPT(nn.Module):
 		self.config = config
 
 		self.transformer = nn.ModuleDict(dict(
-			patch_and_embed = nn.Conv2d(in_channels=config.input_dim, out_channels=config.n_embd, kernel_size=(config.fh, config.fw), stride=(config.fh, config.fw), padding=0),
+			patch_and_embed 		= nn.Conv2d(in_channels=config.input_dim, out_channels=config.n_embd, kernel_size=(config.fh, config.fw), stride=(config.fh, config.fw), padding=0),
+			patch_and_embed_tactile = nn.Conv2d(in_channels=config.tactile_dim, out_channels=config.n_embd, kernel_size=(config.tfh, config.tfw), stride=(config.tfh, config.tfw), padding=0),
 			wpe = nn.Embedding(config.block_size, config.n_embd),
 			drop = nn.Dropout(config.dropout),
 			h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
 			ln_f = LayerNorm(config.n_embd, bias=config.bias),
 			decode_and_depatch = nn.ConvTranspose2d(in_channels=config.n_embd, out_channels=config.input_dim, kernel_size=(config.fh, config.fw), stride=(config.fh, config.fw), padding=0),
+			decode_and_depatch_tactile = nn.ConvTranspose2d(in_channels=config.n_embd, out_channels=config.tactile_dim, kernel_size=(config.tfh, config.tfw), stride=(config.tfh, config.tfw), padding=0),
 			sig = nn.Sigmoid()
 			))
 
 		if config.action:
 			self.transformer.action_embedding  = nn.Linear(int(config.action_dim / config.patches_per_action_frame), config.n_embd)
 
-		if config.tactile:
-			if config.XELA:
-				self.transformer.tactile_embedding = nn.Linear(int(config.tactile_dim / config.patches_per_tactile_frame), config.n_embd)
-				self.transformer.tactile_debedding = nn.Linear(config.n_embd, int(config.tactile_dim / config.patches_per_tactile_frame))
-			elif config.GELSIGHT:
-				self.transformer.patch_and_embed_tactile = nn.Conv2d(in_channels=config.input_dim, out_channels=config.n_embd, kernel_size=(config.fh, config.fw), stride=(config.fh, config.fw), padding=0)
-				self.transformer.decode_and_depatch_tactile = nn.ConvTranspose2d(in_channels=config.n_embd, out_channels=config.input_dim, kernel_size=(config.fh, config.fw), stride=(config.fh, config.fw), padding=0)
-
-		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:      
-			pretrained_image_model_config_path = config.pretrained_config_path
-			with open(pretrained_image_model_config_path, 'r') as file:  pretrained_image_model_config = yaml.load(file, Loader=yaml.FullLoader)
-			pretrained_image_model_config = SimpleNamespace(**pretrained_image_model_config["model_config"]["value"])
-			self.transformer["prior_model"] = VPGPT(pretrained_image_model_config)
-	
 		self.apply(self._init_weights)  # careful initialization
 		for pn, p in self.named_parameters():
 			if pn.endswith('c_proj.weight'):  # apply special scaled init to the residual projections, per GPT-2 paper
 				torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
-
-		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:
-			print("!!! LOADING THE pretrained image encoder !!!")
-			self.transformer.prior_model.load_state_dict(torch.load(self.config.pretrained_model_path))
-
-		if self.config.load_pretrained_image_tokenizer:
-			print("!!! LOADING THE pretrained image tokenizer !!!")
-			pretrained_state_dict = torch.load(self.config.pretrained_model_path)
-			patch_and_embed_state_dict = {k.replace('transformer.patch_and_embed.', ''): v for k, v in pretrained_state_dict.items() if 'transformer.patch_and_embed.' in k}
-			self.transformer.patch_and_embed.load_state_dict(patch_and_embed_state_dict)
-
-		if self.config.load_pretrained_image_decoder:    
-			print("!!! LOADING THE pretrained image decoder   !!!")
-			pretrained_state_dict = torch.load(self.config.pretrained_model_path)
-			decode_and_depatch_state_dict = {k.replace('transformer.decode_and_depatch.', ''): v for k, v in pretrained_state_dict.items() if 'transformer.decode_and_depatch.' in k}
-			self.transformer.decode_and_depatch.load_state_dict(decode_and_depatch_state_dict)
 
 	def get_attention_mask(self):
 		return self.transformer.h[0].attn.viz_mask()
@@ -349,13 +287,7 @@ class VPGPT(nn.Module):
 	def forward(self, idx, targets=None, actions=None, tactiles=None, tactile_targets=None, test=False):
 		device = idx.device
 
-		# pre-process the input if we are using a pretrained model for the image tokenizer
-		if self.config.load_pretrained_image_model or self.config.load_pretrained_ac_image_model:
-			new_idx, _, _, _, _ = self.transformer.prior_model(idx, targets, actions, tactiles, tactile_targets)
-			tok_emb = new_idx.view(-1, self.config.input_dim, self.config.H, self.config.W)
-		else:
-			tok_emb = idx.view(-1, self.config.input_dim, self.config.H, self.config.W)
-			if self.config.GELSIGHT: tok_emb_tactile = tactiles.contiguous().view(-1, self.config.input_dim, self.config.H, self.config.W)
+		tok_emb = idx.contiguous().view(-1, self.config.input_dim, self.config.H, self.config.W)
 		tok_emb = self.transformer.patch_and_embed(tok_emb)  # shape (b, n_embd, t, t)
 
 		patch_size = tok_emb.shape[2]
@@ -365,19 +297,15 @@ class VPGPT(nn.Module):
 		tok_emb = tok_emb.reshape(tok_emb.shape[0], -1, tok_emb.shape[3])							# flatten the time_steps and the patches into one long sequence
 
 		if self.config.tactile:
-			# split the tactile data into patches then embed them
-			if self.config.XELA:
-				tactiles = tactiles.view(tactiles.shape[0], tactiles.shape[1], self.config.patches_per_tactile_frame, -1) 			# shape (b, t,  num_patches, tactile features / num_patches)
-				tactile_emb = self.transformer.tactile_embedding(tactiles) 															# shape (b, t,  num_patches, n_embd)
-				tactile_emb = tactile_emb.view(tactiles.shape[0], tactiles.shape[1] * self.config.patches_per_tactile_frame, -1)	# shape (b, t * num_patches, n_embd)
-				tok_emb = torch.cat((tactile_emb, tok_emb), 1)
-			elif self.config.GELSIGHT:
-				tactile_emb = self.transformer.patch_and_embed_tactile(tok_emb_tactile)  # shape (b, n_embd, t, t)
-				tactile_emb = tactile_emb.flatten(2)
-				tactile_emb = tactile_emb.view(-1, self.config.context_length, tactile_emb.shape[1], tactile_emb.shape[2])  # seperate/split apart the batch and the time_step dims 
-				tactile_emb = tactile_emb.transpose(2, 3)															        # flip the enc_dim from being the last axis to the second last (allows us to combine in the next step)
-				tactile_emb = tactile_emb.reshape(tactile_emb.shape[0], -1, tactile_emb.shape[3])							# flatten the time_steps and the patches into one long sequence
-				tok_emb = torch.cat((tactile_emb, tok_emb), 1)
+			tok_emb_tactile = tactiles.contiguous().view(-1, self.config.tactile_dim, self.config.TH, self.config.TW)
+			tok_emb_tactile = self.transformer.patch_and_embed_tactile(tok_emb_tactile)  # shape (b, n_embd, t, t)
+
+			tactile_patch_size = tok_emb_tactile.shape[2]
+			tok_emb_tactile = tok_emb_tactile.flatten(2)
+			tok_emb_tactile = tok_emb_tactile.view(-1, self.config.context_length, tok_emb_tactile.shape[1], tok_emb_tactile.shape[2])  # seperate/split apart the batch and the time_step dims 
+			tok_emb_tactile = tok_emb_tactile.transpose(2, 3)																			# flip the enc_dim from being the last axis to the second last (allows us to combine in the next step)
+			tok_emb_tactile = tok_emb_tactile.reshape(tok_emb_tactile.shape[0], -1, tok_emb_tactile.shape[3])							# flatten the time_steps and the patches into one long sequence
+			tok_emb = torch.cat((tok_emb_tactile, tok_emb), 1)
 
 		if self.config.action:
 			# split the action data into patches then embed them
@@ -386,6 +314,7 @@ class VPGPT(nn.Module):
 			action_emb = action_emb.view(actions.shape[0], actions.shape[1] * self.config.patches_per_action_frame, -1)  # shape (b, t * num_patches, n_embd)
 
 			tok_emb = torch.cat((action_emb, tok_emb), 1)
+
 
 		n, t, c = tok_emb.shape
 		assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}, check you have added an extra bit for the classification token"
@@ -398,26 +327,16 @@ class VPGPT(nn.Module):
 			x = block(x)
 		x = self.transformer.ln_f(x)
 
-		if self.config.XELA:
-			if self.config.action and not self.config.tactile:
-				action, x = torch.split(x, [(self.config.context_length+1) * self.config.patches_per_action_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
-			elif self.config.tactile and not self.config.action:
-				x_tactile, x  = torch.split(x, [self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
-			elif self.config.tactile and self.config.action:
-				action, x_tactile, x = torch.split(x, [(self.config.context_length+1) * self.config.patches_per_action_frame, self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
-		elif self.config.GELSIGHT:
-			if self.config.action and not self.config.tactile:
-				action, x = torch.split(x, [(self.config.context_length+1) * self.config.patches_per_action_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
-			elif self.config.tactile and not self.config.action:
-				x_tactile, x  = torch.split(x, [self.config.context_length * self.config.patches_per_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
-			elif self.config.tactile and self.config.action:
-				action, x_tactile, x = torch.split(x, [(self.config.context_length+1) * self.config.patches_per_action_frame, self.config.context_length * self.config.patches_per_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
+		if self.config.tactile and not self.config.action:
+			x_tactile, x  = torch.split(x, [self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
+		elif self.config.tactile and self.config.action:
+			action, x_tactile, x = torch.split(x, [(self.config.context_length+1) * self.config.patches_per_action_frame, self.config.context_length * self.config.patches_per_tactile_frame, self.config.context_length * self.config.patches_per_frame], dim=1)
 
-		x = x.view(-1, self.config.context_length, int(x.shape[1] / self.config.context_length), x.shape[2])  # input  shape = [bs, t*num_patch, enc_dim] || output shape = [bs, t, num_patch, enc_dim]
-		if self.config.action:	x = x.reshape(-1, x.shape[2], x.shape[3])  									  # output shape = [bs*t, num_patch, enc_dim]	
-		else:                   x = x.view(-1, x.shape[2], x.shape[3])  									  # ^^
-		x = x.transpose(1, 2)  																				  # output shape = [bs*t, enc_dim, num_patch]
-		x = x.view(x.shape[0], x.shape[1], patch_size, patch_size)  										  # output shape = [bs*t, enc_dim, patch_size, patch_size]
+
+		x = x.contiguous().view(-1, self.config.context_length, int(x.shape[1] / self.config.context_length), x.shape[2]) # input  shape = [bs, t*num_patch, enc_dim] || output shape = [bs, t, num_patch, enc_dim]
+		x = x.view(-1, x.shape[2], x.shape[3])  									  									  # ^^
+		x = x.transpose(1, 2)  																				              # output shape = [bs*t, enc_dim, num_patch]
+		x = x.view(x.shape[0], x.shape[1], patch_size, patch_size)  										              # output shape = [bs*t, enc_dim, patch_size, patch_size]
 
 		x = self.transformer.sig(self.transformer.decode_and_depatch(x)) 									  # input shape  = [bs*t, enc_dim, patch_size, patch_size] || output shape = [bs*t, c, h, w]
 		x = x.reshape(-1, self.config.context_length, self.config.input_dim, self.config.H, self.config.W)    # output shape = [bs, t, c, h, w]
@@ -430,18 +349,13 @@ class VPGPT(nn.Module):
 			pred_tactile = None
 
 		if self.config.image ==True and self.config.tactile:
-			if self.config.XELA:
-				pred_tactile = self.transformer.sig(self.transformer.tactile_debedding(x_tactile))
-				pred_tactile = pred_tactile.view(n, self.config.context_length, self.config.patches_per_tactile_frame, -1)
-				pred_tactile = pred_tactile.view(n, self.config.context_length, -1)
-			elif self.config.GELSIGHT:
-				x_tactile = x_tactile.view(-1, self.config.context_length, int(x_tactile.shape[1] / self.config.context_length), x_tactile.shape[2])  # input  shape = [bs, t*num_patch, enc_dim] || output shape = [bs, t, num_patch, enc_dim]
-				if self.config.action:	x_tactile = x_tactile.reshape(-1, x_tactile.shape[2], x_tactile.shape[3])  									  # output shape = [bs*t, num_patch, enc_dim]	
-				else:                   x_tactile = x_tactile.view(-1, x_tactile.shape[2], x_tactile.shape[3])  									  # ^^
-				x_tactile = x_tactile.transpose(1, 2)  																				  # output shape = [bs*t, enc_dim, num_patch]
-				x_tactile = x_tactile.view(x_tactile.shape[0], x_tactile.shape[1], patch_size, patch_size)  										  # output shape = [bs*t, enc_dim, patch_size, patch_size]
-				x_tactile = self.transformer.sig(self.transformer.decode_and_depatch(x_tactile)) 									  # input shape  = [bs*t, enc_dim, patch_size, patch_size] || output shape = [bs*t, c, h, w]
-				pred_tactile = x_tactile.reshape(-1, self.config.context_length, self.config.input_dim, self.config.H, self.config.W)    # output shape = [bs, t, c, h, w]
+			pred_tactile = x_tactile.contiguous().view(-1, self.config.context_length, int(x_tactile.shape[1] / self.config.context_length), x_tactile.shape[2]) # input  shape = [bs, t*num_patch, enc_dim] || output shape = [bs, t, num_patch, enc_dim]
+			pred_tactile = pred_tactile.view(-1, pred_tactile.shape[2], pred_tactile.shape[3])  									  									  # ^^
+			pred_tactile = pred_tactile.transpose(1, 2)  																				              # output shape = [bs*t, enc_dim, num_patch]
+			pred_tactile = pred_tactile.view(pred_tactile.shape[0], pred_tactile.shape[1], tactile_patch_size, tactile_patch_size)  										              # output shape = [bs*t, enc_dim, patch_size, patch_size]
+
+			pred_tactile = self.transformer.sig(self.transformer.decode_and_depatch_tactile(pred_tactile)) 									  # input shape  = [bs*t, enc_dim, patch_size, patch_size] || output shape = [bs*t, c, h, w]
+			pred_tactile = pred_tactile.reshape(-1, self.config.context_length, self.config.input_dim, self.config.TH, self.config.TW)    # output shape = [bs, t, c, h, w]
 
 			tactile_loss = F.l1_loss(pred_tactile, tactile_targets, reduction='mean')
 			total_loss = (1.0*loss) + (1.0*tactile_loss)

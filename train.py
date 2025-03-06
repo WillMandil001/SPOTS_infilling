@@ -39,13 +39,13 @@ FLAGS = flags.FLAGS
 # flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
 flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
-flags.DEFINE_string ('test_version',             "shapes-timesteps -GS",        'just a filler name for logging - set to vXX or testXXX')
+flags.DEFINE_string ('test_version',             "DogsCats -timesteps -GS",        'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('train_infill',             True,           'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              True,           'Whether to infill or not')
 flags.DEFINE_boolean('train_tactile_infill',     False,          'Whether to infill or not')  #! must set this to False when using the GelSight sensor
 flags.DEFINE_boolean('test_tactile_infill',      False,          'Whether to infill or not')
-flags.DEFINE_boolean('complex_shape_infill',     True,           'Whether to infill or not')
-flags.DEFINE_boolean('object_mask_infill',       False,          'Whether to infill or not')
+flags.DEFINE_boolean('complex_shape_infill',     False,          'Whether to infill or not')
+flags.DEFINE_boolean('object_mask_infill',       True,           'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags
@@ -345,6 +345,22 @@ def main(argv):
 
     test_dataset = VisionTactileDataset(config=config, map_file=config.dataset_test_dir + "map.npy", context_len=config.context_length, prediction_horizon=config.prediction_horizon, train=False)
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=config.num_workers)
+
+    ###########################
+    # Load the masks for the occlusions
+    ###########################
+    if config.object_mask_infill:
+        config.masks_list = []
+        for file in os.listdir(config.mask_directory):
+            config.masks_list.append(os.path.join(config.mask_directory, file))
+        # config.masks_list = ["/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/0b21383186fb9f81.png",
+        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/0ff33dbd32c0a0c0.png",
+        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/1adfc68ee1f6d380.png",
+        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/01e368998a68ff28.png",
+        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/3a5e2fe56f74de88.png",
+        # ]
+        # config.masks_preloaded = []
+        # for mask in config.masks_list:
 
     ###########################
     # Load the model and optimizer

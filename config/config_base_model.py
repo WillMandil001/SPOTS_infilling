@@ -95,7 +95,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug              = False
+        self.debug              = True
         self.cluster            = False
         self.pre_load_data      = True
         self.preload_data_gpu   = False
@@ -139,10 +139,10 @@ class Config:
         # Training parameters
         ###########################
         self.seed       = 42
-        self.batch_size = 256  # FOR XELA set it at: 256
+        self.batch_size = 224  # FOR XELA set it at: 256
 
         self.num_steps       = 100_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
-        self.save_interval   = 99_000
+        self.save_interval   = 10_000
         self.log_interval    = 500
         if self.debug: self.eval_interval   = 10
         else:          self.eval_interval   = (750*4)  # at 50000 steps we do 4000 eval_interval
@@ -181,7 +181,7 @@ class Config:
         self.test_infill          = False
         self.complex_shape_infill = False #! the current one for testing :D 
         self.object_mask_infill   = True
-        self.mask_directory       = ""
+        self.mask_directory       = "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/"
         self.min_infill_patch_size  = 1
         self.max_infill_patch_size  = 127 # 84 #32
 

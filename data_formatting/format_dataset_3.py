@@ -40,8 +40,22 @@ def create_rlds_dataset(folders, data_location, gelsight=False):
             tactile_data = [[tactile_data_split[feature][ts] + tactile_offsets[feature] for feature in range(3)] for ts in range(tactile_data_split[0].shape[0])]
         elif gelsight:
             gelsight_raw = []
-            for k in range(len(gelsight_sensor)):
+            # for k in range(len(gelsight_sensor)):
+            #     tmp = Image.fromarray(gelsight_sensor[k])
+            #     tmp = tmp.resize((128, 128), Image.LANCZOS)
+            #     tmp = np.frombuffer(tmp.tobytes(), dtype=np.uint8)
+            #     tmp = tmp.reshape((128, 128, 3))
+            #     gelsight_raw.append(tmp)
+            for k in range(len(gelsight_sensor)):  #! we need to crop the gelsight images so that we dont add in the needless casing space around the image
                 tmp = Image.fromarray(gelsight_sensor[k])
+                width, height = tmp.size
+                left   = 60
+                top    = 90
+                right  = width - 40
+                bottom = height - 140
+                tmp = tmp.crop((left, top, right, bottom))
+                #save the image as a png
+                tmp.save("gelsight_image.png")
                 tmp = tmp.resize((128, 128), Image.LANCZOS)
                 tmp = np.frombuffer(tmp.tobytes(), dtype=np.uint8)
                 tmp = tmp.reshape((128, 128, 3))
@@ -126,7 +140,8 @@ def create_rlds_dataset(folders, data_location, gelsight=False):
 #     create_rlds_dataset(folders=os.listdir(dataset_dir),  data_location=dataset_dir)
 
 #! If using gelsight:
-dataset_dirs = ["/media/wmandil/Data/Robotics/Data_sets/infilling_simple_001_gelsight/train/",
-                "/media/wmandil/Data/Robotics/Data_sets/infilling_simple_001_gelsight/test/"]
+dataset_dirs = [#"/media/wmandil/Data/Robotics/Data_sets/infilling_simple_001_gelsight_unformatted/train/",
+                "/media/wmandil/Data/Robotics/Data_sets/infilling_simple_001_gelsight_unformatted/val/",
+                "/media/wmandil/Data/Robotics/Data_sets/infilling_simple_001_gelsight_unformatted/test/"]
 for dataset_dir in dataset_dirs:
     create_rlds_dataset(folders=os.listdir(dataset_dir),  data_location=dataset_dir, gelsight=True)

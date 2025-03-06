@@ -369,7 +369,7 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
                 if config.complex_shape_infill:
                     image_context = add_complex_occlusions(image_context, config, repeatable_infill=repeatable_infill, step=step)
                 elif config.object_mask_infill:
-                    image_context = add_real_masks(image_context, config, mask_directory=config.mask_directory)
+                    image_context = add_real_masks(image_context, config, repeatable_infill, step, masks_list = config.masks_list)
                 else:
                     if repeatable_infill:
                         x = config.repeatable_infil_x_pos
@@ -397,6 +397,8 @@ def format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout
             if config.train_infill:
                 if config.complex_shape_infill:
                         image_context = add_complex_occlusions(image_context, config, repeatable_infill=repeatable_infill, step=step)
+                elif config.object_mask_infill:
+                    image_context = add_real_masks(image_context, config, repeatable_infill, step, masks_list = config.masks_list)   
                 else:
                     if repeatable_infill:
                         x = config.repeatable_infil_x_pos
@@ -732,31 +734,70 @@ def add_complex_occlusions(
     occluded = image_context * (~final_mask) + color_bcast * final_mask
     return occluded
 
+import torch
+import numpy as np
+from PIL import Image
 
-def add_real_masks(image_context, config, mask_directory):
-    # Load all mask file paths
-    import os
-    mask_files = [os.path.join(mask_directory, f) for f in os.listdir(mask_directory) if f.endswith('.png')]
-    
-    # Randomly choose a mask
-    mask_path = np.random.choice(mask_files)
-    mask = Image.open(mask_path).convert("RGBA")  # Open mask with alpha channel
-    
-    # Random scale and rotation
-    scale = np.random.uniform(0.5, 2.0)
-    angle = np.random.randint(0, 360)
-    mask = mask.resize((int(mask.width * scale), int(mask.height * scale)), Image.ANTIALIAS)
-    mask = mask.rotate(angle, expand=True)
-    
-    # Random position
-    x = np.random.randint(0, config.image_height - mask.height)
-    y = np.random.randint(0, config.image_width - mask.width)
-    
-    # Convert image to RGBA
-    image = Image.fromarray(image_context[0, 0].astype(np.uint8), mode="RGBA")
-    
-    # Composite the mask onto the image
-    image.paste(mask, (y, x), mask=mask)
-    
-    # Update the image context
-    image_context[0, 0] = np.array(image.convert("RGB"), dtype=image_context.dtype)
+def add_real_masks(image_context: torch.Tensor, config, repeatable_infill: bool = False, step: int = 0, masks_list: list = None):
+    device = image_context.device
+    bs, timesteps, channels, height, width = image_context.shape
+
+    # Select masks
+    if repeatable_infill:
+        test_masks = [
+            "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/0b21383186fb9f81.png",
+            "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/0ff33dbd32c0a0c0.png",
+            "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/1adfc68ee1f6d380.png",
+            "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/01e368998a68ff28.png",
+            "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/3a5e2fe56f74de88.png"
+        ]
+        mask_indices = [step % len(test_masks)] * bs
+    else:
+        mask_indices = torch.randint(0, len(masks_list), (bs,))  # Ensure tensor is on the same device
+
+    # Random or fixed positions and sizes
+    if repeatable_infill:
+        x = config.repeatable_infil_x_pos
+        y = config.repeatable_infil_y_pos
+        infill_patch_size = config.repeatable_infil_patch_size
+    else:
+        infill_patch_size = np.random.randint(config.min_infill_patch_size, config.max_infill_patch_size)
+        x = np.random.randint(0, config.image_height - infill_patch_size)
+        y = np.random.randint(0, config.image_width  - infill_patch_size)
+
+    # Load, resize, and process masks
+    masks = [Image.open(masks_list[i]).convert("RGBA") for i in mask_indices]  # Load as RGBA
+    masks = [mask.resize((infill_patch_size, infill_patch_size)) for mask in masks]  # Resize
+    masks = [np.array(mask, dtype=np.float32) / 255.0 for mask in masks]  # Normalize [0,1]
+
+    # Convert to tensors and separate RGBA channels
+    masks = [torch.tensor(mask, dtype=image_context.dtype, device=device) for mask in masks]  
+    masks_rgb = torch.stack([mask[..., :3] for mask in masks])  # RGB values (batch, h, w, 3)
+    masks_alpha = torch.stack([mask[..., 3:4] for mask in masks])  # Alpha values (batch, h, w, 1)
+
+    # **Fix BGRA to RGB Swap** (Swap B and R)
+    masks_rgb = masks_rgb[..., [2, 1, 0]]  # Swap first and last channels (BGR → RGB)
+
+    # Reshape alpha channel for broadcasting (batch, 1, h, w)
+    masks_alpha = masks_alpha.permute(0, 3, 1, 2)  # Convert to (batch, 1, height, width)
+    masks_rgb = masks_rgb.permute(0, 3, 1, 2)  # Convert to (batch, 3, height, width)
+
+    # Apply mask over all timesteps
+    for t in range(timesteps):
+        # Crop region from the input image
+        img_patch = image_context[:, t, :, y:y+infill_patch_size, x:x+infill_patch_size]
+
+        # Alpha blending: new_img = (1 - alpha) * original + alpha * mask
+        blended_patch = (1 - masks_alpha) * img_patch + masks_alpha * masks_rgb
+
+        # Apply back to image_context
+        image_context[:, t, :, y:y+infill_patch_size, x:x+infill_patch_size] = blended_patch
+
+    # save one of the image_contexts as png
+    img = image_context[0, 0].permute(1, 2, 0).cpu().numpy()
+    img = (img * 255).astype(np.uint8)
+    Image.fromarray(img).save("test.png")
+
+    return image_context
+
+

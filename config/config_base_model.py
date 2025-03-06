@@ -95,7 +95,7 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug              = True
+        self.debug              = False
         self.cluster            = False
         self.pre_load_data      = True
         self.preload_data_gpu   = False
@@ -145,7 +145,7 @@ class Config:
         self.save_interval   = 10_000
         self.log_interval    = 500
         if self.debug: self.eval_interval   = 10
-        else:          self.eval_interval   = (750*4)  # at 50000 steps we do 4000 eval_interval
+        else:          self.eval_interval   = 10 # (750*4)  # at 50000 steps we do 4000 eval_interval
 
         self.sample_rate = 2                  # how many frames to skip for the dataset (basically makes bigger changes in between each sequence) 
 

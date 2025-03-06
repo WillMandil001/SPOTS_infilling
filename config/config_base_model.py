@@ -139,7 +139,7 @@ class Config:
         # Training parameters
         ###########################
         self.seed       = 42
-        self.batch_size = 224  # FOR XELA set it at: 256
+        self.batch_size = 256  # FOR XELA set it at: 256
 
         self.num_steps       = 100_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
         self.save_interval   = 10_000

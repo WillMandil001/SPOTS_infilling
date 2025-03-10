@@ -95,17 +95,17 @@ class Config:
         ###########################
         # General parameters
         ###########################
-        self.debug              = False
+        self.debug              = True
         self.cluster            = False
         self.pre_load_data      = True
         self.preload_data_gpu   = False
         self.classification_bit = False
         self.num_classes        = 5
         self.model_type         = ""
-        self.XELA               = False
-        self.GELSIGHT           = True
+        self.XELA               = True
+        self.GELSIGHT           = False
 
-        self.dataset_to_use = "infilling_simple_001_gelsight"  # infilling_simple_005_new_set, robot_pushing, robot_pushing_edge_case, infilling_simple_001_spam, infilling_simple_002_2cans, infilling_simple_003_10objs, infilling_simple_005_6objs
+        self.dataset_to_use = "infilling_simple_005_new_set"  # infilling_simple_001_gelsight, infilling_simple_005_new_set, robot_pushing, robot_pushing_edge_case, infilling_simple_001_spam, infilling_simple_002_2cans, infilling_simple_003_10objs, infilling_simple_005_6objs
 
         if self.cluster == False:
             self.dataset_name      = "robot_grasping_dataset"
@@ -141,7 +141,7 @@ class Config:
         self.seed       = 42
         self.batch_size = 256  # FOR XELA set it at: 256
 
-        self.num_steps       = 100_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
+        self.num_steps       = 10 # 100_000          # dataset is currently 144,495 steps at 256 batch size is:  560ish steps per epoch
         self.save_interval   = 10_000
         self.log_interval    = 500
         if self.debug: self.eval_interval   = 10

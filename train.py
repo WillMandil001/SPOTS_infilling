@@ -35,17 +35,17 @@ from absl import app, logging, flags
 FLAGS = flags.FLAGS
 
 # experiment / run flags
-# flags.DEFINE_string ('model_name',               "SVG-ACTP",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
-# flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
-flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
-flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
+flags.DEFINE_string ('model_name',               "SVG-ACTP",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+flags.DEFINE_string ('model_type',               "SVG",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
+# flags.DEFINE_string ('model_name',               "AC-VTGPT",     'write the model name here (VGPT, AC-VGPT, AC-VTGPT, SVG, SVG-ACTP, SVG-ACTP-SOP)')
+# flags.DEFINE_string ('model_type',               "transformer",  'Set the type of model you are going to use (transformer, SVG, ACTP)')
 flags.DEFINE_string ('test_version',             "DogsCats -timesteps -GS",        'just a filler name for logging - set to vXX or testXXX')
 flags.DEFINE_boolean('train_infill',             True,           'Whether to infill or not')
 flags.DEFINE_boolean('test_infill',              True,           'Whether to infill or not')
 flags.DEFINE_boolean('train_tactile_infill',     False,          'Whether to infill or not')  #! must set this to False when using the GelSight sensor
 flags.DEFINE_boolean('test_tactile_infill',      False,          'Whether to infill or not')
-flags.DEFINE_boolean('complex_shape_infill',     False,          'Whether to infill or not')
-flags.DEFINE_boolean('object_mask_infill',       True,           'Whether to infill or not')
+flags.DEFINE_boolean('complex_shape_infill',     True,          'Whether to infill or not')
+flags.DEFINE_boolean('object_mask_infill',       False,           'Whether to infill or not')
 flags.DEFINE_boolean('cluster',                  False,          'Whether or not to run on the cluster')
 
 # training flags
@@ -184,11 +184,11 @@ class VisionTactileDataset(Dataset):
                 self.robot_state_scaler = MinMaxScaler(feature_range=(0, 1))
             else: # load the scalars from the save_dir:
                 if self.config.XELA: 
-                    self.tactile_scaler_x   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                    self.tactile_scaler_y   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                    self.tactile_scaler_z   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
-                self.robot_state_norm   = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
-                self.robot_state_scaler = joblib.load(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
+                    self.tactile_scaler_x   = joblib.load(os.path.join(self.config.save_dir, "tactile_scaler_x.pkl"))
+                    self.tactile_scaler_y   = joblib.load(os.path.join(self.config.save_dir, "tactile_scaler_y.pkl"))
+                    self.tactile_scaler_z   = joblib.load(os.path.join(self.config.save_dir, "tactile_scaler_z.pkl"))
+                self.robot_state_norm   = joblib.load(os.path.join(self.config.save_dir, "robot_state_norm.pkl"))
+                self.robot_state_scaler = joblib.load(os.path.join(self.config.save_dir, "robot_state_scaler.pkl"))
 
             # Fit the scalers on the corresponding slices of the tactile data
             if self.config.XELA:
@@ -214,17 +214,17 @@ class VisionTactileDataset(Dataset):
             self.time_step_max = np.max(time_step_data)
             time_step_data = time_step_data / self.time_step_max
 
-            name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(1, len(name), figsize=(12, 12))
-            for i in range(len(name)):
-                ax[i].hist(robot_state_data[:, i].flatten(), bins=200)
-                ax[i].set_title(f"{name[i]}")
-                ax[i].set_xlabel("angle/distance")
-                ax[i].set_ylabel("Frequency")
-            plt.tight_layout()
-            # save
-            plt.savefig("robot_state_histogram.png")
+            # name = ["pos x", "pos y", "pos z", "rot x", "rot y", "rot z"]
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1, len(name), figsize=(12, 12))
+            # for i in range(len(name)):
+            #     ax[i].hist(robot_state_data[:, i].flatten(), bins=200)
+            #     ax[i].set_title(f"{name[i]}")
+            #     ax[i].set_xlabel("angle/distance")
+            #     ax[i].set_ylabel("Frequency")
+            # plt.tight_layout()
+            # # save
+            # plt.savefig("robot_state_histogram.png")
 
             for i in range(len(self.data)):
                 if self.config.XELA: self.data[i][2] = tactile_data[i]
@@ -232,14 +232,13 @@ class VisionTactileDataset(Dataset):
                 self.data[i][3] = time_step_data[i]
 
             if self.train:
-                os.makedirs(os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id), exist_ok=True)
                 if self.config.XELA: 
-                    joblib.dump(self.tactile_scaler_x,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_x.pkl"))
-                    joblib.dump(self.tactile_scaler_y,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_y.pkl"))
-                    joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "tactile_scaler_z.pkl"))
-                joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_norm.pkl"))
-                joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "robot_state_scaler.pkl"))
-                joblib.dump(self.time_step_max,      os.path.join(self.config.save_dir, self.config.model_name, self.wandb_id, "time_step_max.pkl"))
+                    joblib.dump(self.tactile_scaler_x,   os.path.join(self.config.save_dir, "tactile_scaler_x.pkl"))
+                    joblib.dump(self.tactile_scaler_y,   os.path.join(self.config.save_dir, "tactile_scaler_y.pkl"))
+                    joblib.dump(self.tactile_scaler_z,   os.path.join(self.config.save_dir, "tactile_scaler_z.pkl"))
+                joblib.dump(self.robot_state_norm,   os.path.join(self.config.save_dir, "robot_state_norm.pkl"))
+                joblib.dump(self.robot_state_scaler, os.path.join(self.config.save_dir, "robot_state_scaler.pkl"))
+                joblib.dump(self.time_step_max,      os.path.join(self.config.save_dir, "time_step_max.pkl"))
 
 def main(argv):
     ###########################
@@ -325,6 +324,9 @@ def main(argv):
     logging.info("Wandb logs saved to %s", wandb.run.dir)
     logging.info("Wandb url: %s", wandb.run.get_url())
 
+    config.save_dir = os.path.join(config.save_dir, config.model_name, wandb_id)
+    os.makedirs(config.save_dir, exist_ok=True)
+
     ###########################
     # Load the dataset  | load the tfrecords RLDS dataset saved locally at: /home/wmandil/tensorflow_datasets/robot_pushing_dataset/1.0.0
     ###########################
@@ -353,14 +355,6 @@ def main(argv):
         config.masks_list = []
         for file in os.listdir(config.mask_directory):
             config.masks_list.append(os.path.join(config.mask_directory, file))
-        # config.masks_list = ["/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/0b21383186fb9f81.png",
-        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/0ff33dbd32c0a0c0.png",
-        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/1adfc68ee1f6d380.png",
-        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/01e368998a68ff28.png",
-        #                      "/home/wmandil/robotics/datasets/open_images_mask_dataset_dogs_and_cats_small/3a5e2fe56f74de88.png",
-        # ]
-        # config.masks_preloaded = []
-        # for mask in config.masks_list:
 
     ###########################
     # Load the model and optimizer
@@ -522,7 +516,31 @@ def main(argv):
                 timer.tick("batch_gen")
                 timer.tick("total")
 
-    train_utils.save_model(model, "model_final", config, wandb_id)
+    ###########################
+    # save the final model
+    ###########################
+    # print("saving the final model")        
+    # train_utils.save_model(model, "model_final", config, wandb_id)
+
+    ###########################
+    # final evaluation  |  saving the final test data
+    ###########################
+    print("running the final evaluation")
+    with torch.no_grad():
+        model.eval()
+        save_dir = os.path.join(config.save_dir, "rollout_data/")
+        os.makedirs(save_dir, exist_ok=True)
+        # start a tqdm loop
+        for i, batch in enumerate(tqdm(test_dataloader, desc="Final evaluation", dynamic_ncols=True)):
+            (rollout_image_prediction, image_groundtruth, rollout_tactile_prediction, tactile_groundtruth, image_losses, tactile_losses, combined_total_loss, 
+            loss_sequence_image, loss_sequence_tactile, loss_sequence_combined, image_context, tactile_context) = train_utils.format_and_run_batch(batch, config, model, criterion, timer, horizon_rollout=True, repeatable_infill=True, step=i)
+            if config.image:    
+                np.save("{}rollout_image_prediction_{}.npy".format(save_dir, i), rollout_image_prediction.cpu().numpy())
+                np.save("{}image_groundtruth_{}.npy".format(save_dir, i), image_groundtruth.cpu().numpy())
+            if config.tactile:
+                np.save("{}rollout_tactile_prediction_{}.npy".format(save_dir, i), rollout_tactile_prediction.cpu().numpy())
+                np.save("{}tactile_groundtruth_{}.npy".format(save_dir, i), tactile_groundtruth.cpu().numpy())
+
 
 if __name__ == "__main__":
     app.run(main)

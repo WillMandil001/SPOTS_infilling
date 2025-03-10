@@ -1,7 +1,13 @@
 #!/bin/bash
 
-python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VTGPT"
-# python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VGPT"
+# python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VTGPT"  --model_type="transformer" --test_version="-prim-xela-timesteps"  --object_mask_infill=False --complex_shape_infill=True
+# python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VGPT"   --model_type="transformer" --test_version="-prim-xela-timesteps"  --object_mask_infill=False --complex_shape_infill=True
+python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="SVG"       --model_type="SVG"         --test_version="-prim-xela-timesteps"  --object_mask_infill=False --complex_shape_infill=True
+python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="SVG-ACTP"  --model_type="SVG"         --test_version="-prim-xela-timesteps"  --object_mask_infill=False --complex_shape_infill=True
+
+# python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="AC-VTGPT" --object_mask_infill=True  --complex_shape_infill=False
+# python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="SVG-ACTP" --object_mask_infill=True  --complex_shape_infill=False
+# python /home/wmandil/robotics/SPOTS_infilling/train.py --model_name="SVG"      --object_mask_infill=True  --complex_shape_infill=False
 
 
 # test with pre-trained tokenizer

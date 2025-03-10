@@ -13,9 +13,9 @@ class Model(nn.Module):
         if self.features.optimizer == "adam" or self.features.optimizer == "Adam":
             self.optimizer = optim.Adam
 
-        if self.features.criterion == "L1":
+        if self.features.criterion == "L1" or self.features.criterion == "MAE": 
             self.criterion = nn.L1Loss().to(self.features.device)
-        if self.features.criterion == "L2":
+        if self.features.criterion == "L2" or self.features.criterion == "MSE":
             self.criterion = nn.MSELoss().to(self.features.device)
 
     def load_model(self, full_model):

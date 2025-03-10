@@ -495,8 +495,8 @@ def validate_action_space(robot_state, config):
 ###########################
 
 def save_model(model, name, config, wandb_id):
-    os.makedirs(config.save_dir + "/" + config.model_name + "/" + wandb_id + "/", exist_ok=True)
-    save_path = config.save_dir + "/" + config.model_name + "/" + wandb_id + "/" + name + ".pth"
+    # os.makedirs(config.save_dir + "/" + config.model_name + "/" + wandb_id + "/", exist_ok=True)
+    save_path = config.save_dir + "/" + name + ".pth"
     if config.model_type == "transformer":    torch.save(model.state_dict(), save_path)
     elif config.model_type == "lstm":         model.save_model(save_path)
 
